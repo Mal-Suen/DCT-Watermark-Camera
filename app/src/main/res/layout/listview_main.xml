@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout android:id="@+id/LinearLayout01"
+    android:layout_width="fill_parent"
+    android:layout_height="fill_parent"
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:custom="http://schemas.android.com/apk/res-auto"
+    android:orientation="horizontal">
+
+    <ListView
+        android:id="@+id/MyListView"
+        android:layout_width="match_parent"
+        android:layout_height="463dp"
+        android:layout_alignParentTop="true"
+        android:layout_alignParentStart="true" />
+
+    <com.dd.processbutton.FlatButton
+        android:id="@+id/back_button"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:text="返回"
+        android:textColor="@android:color/white"
+        custom:pb_colorNormal="@android:color/holo_blue_light"
+        custom:pb_colorPressed="@android:color/holo_blue_dark"
+        android:layout_alignParentBottom="true"
+        android:layout_alignParentStart="true" />
+
+</RelativeLayout>
