@@ -1,0 +1,347 @@
+<?xml version="1.0" encoding="utf-8"?>
+<items version="2" >
+
+    <item
+        is-multidex="true"
+        jar="/Users/Belikovvv/Documents/workspace_for_Android/DCTCamera/app/libs/ShareSDK-QQ-3.0.1.jar"
+        jumboMode="true"
+        optimize="true"
+        revision="25.0.2"
+        sha1="0c59c6592803252d2d2f08271c14631b94a43ced">
+        <dex dex="/Users/Belikovvv/Documents/workspace_for_Android/DCTCamera/app/build/intermediates/transforms/dex/debug/folders/1000/2/ShareSDK-QQ-3.0.1_5d5ebd8921cc99678f07e2c6c8a8a0cddbc6ea8e/classes.dex" />
+    </item>
+    <item
+        is-multidex="false"
+        jar="/Users/Belikovvv/Documents/workspace_for_Android/DCTCamera/app/libs/ShareSDK-QQ-3.0.1.jar"
+        jumboMode="false"
+        optimize="true"
+        revision="25.0.2"
+        sha1="0c59c6592803252d2d2f08271c14631b94a43ced">
+        <dex dex="/Users/Belikovvv/Documents/workspace_for_Android/DCTCamera/app/build/intermediates/pre-dexed/release/ShareSDK-QQ-3.0.1_5d5ebd8921cc99678f07e2c6c8a8a0cddbc6ea8e.jar" />
+    </item>
+    <item
+        is-multidex="false"
+        jar="/Users/Belikovvv/Documents/workspace_for_Android/DCTCamera/app/libs/ShareSDK-Wechat-Favorite-3.0.1.jar"
+        jumboMode="false"
+        optimize="true"
+        revision="25.0.2"
+        sha1="a2056cba6fd9ea505d7cc98eec7861193805918b">
+        <dex dex="/Users/Belikovvv/Documents/workspace_for_Android/DCTCamera/app/build/intermediates/pre-dexed/release/ShareSDK-Wechat-Favorite-3.0.1_7793bd2a9b755dcb56d9f59e2e858ce4613e2928.jar" />
+    </item>
+    <item
+        is-multidex="true"
+        jar="/Users/Belikovvv/Documents/workspace_for_Android/DCTCamera/app/libs/ShareSDK-Wechat-Favorite-3.0.1.jar"
+        jumboMode="true"
+        optimize="true"
+        revision="25.0.2"
+        sha1="a2056cba6fd9ea505d7cc98eec7861193805918b">
+        <dex dex="/Users/Belikovvv/Documents/workspace_for_Android/DCTCamera/app/build/intermediates/transforms/dex/debug/folders/1000/2/ShareSDK-Wechat-Favorite-3.0.1_7793bd2a9b755dcb56d9f59e2e858ce4613e2928/classes.dex" />
+    </item>
+    <item
+        is-multidex="true"
+        jar="/Users/Belikovvv/Documents/workspace_for_Android/DCTCamera/app/libs/ShareSDK-Douban-3.0.1.jar"
+        jumboMode="true"
+        optimize="true"
+        revision="25.0.2"
+        sha1="36737672732c8f94d2a973928e1cc1afbb86db54">
+        <dex dex="/Users/Belikovvv/Documents/workspace_for_Android/DCTCamera/app/build/intermediates/transforms/dex/debug/folders/1000/2/ShareSDK-Douban-3.0.1_f5c611d30e2d74af14924f5d8919831938708bd4/classes.dex" />
+    </item>
+    <item
+        is-multidex="true"
+        jar="/Users/Belikovvv/Documents/workspace_for_Android/DCTCamera/app/libs/ShareSDK-SinaWeibo-3.0.1.jar"
+        jumboMode="true"
+        optimize="true"
+        revision="25.0.2"
+        sha1="f766d71adaac32b6bb15355baf9bd920cb98bf60">
+        <dex dex="/Users/Belikovvv/Documents/workspace_for_Android/DCTCamera/app/build/intermediates/transforms/dex/debug/folders/1000/2/ShareSDK-SinaWeibo-3.0.1_6b8e818c544507fb484eee973bc58d7fa14c312c/classes.dex" />
+    </item>
+    <item
+        is-multidex="true"
+        jar="/Users/Belikovvv/Documents/workspace_for_Android/DCTCamera/app/libs/ShareSDK-Wechat-Moments-3.0.1.jar"
+        jumboMode="true"
+        optimize="true"
+        revision="25.0.2"
+        sha1="5007b4d17d692e57cc90584ab6a1c171b57c937e">
+        <dex dex="/Users/Belikovvv/Documents/workspace_for_Android/DCTCamera/app/build/intermediates/transforms/dex/debug/folders/1000/2/ShareSDK-Wechat-Moments-3.0.1_4cf89a2c48222bb681471a880822b9a0dc286c03/classes.dex" />
+    </item>
+    <item
+        is-multidex="false"
+        jar="/Users/Belikovvv/Documents/workspace_for_Android/DCTCamera/app/libs/ShareSDK-Douban-3.0.1.jar"
+        jumboMode="false"
+        optimize="true"
+        revision="25.0.2"
+        sha1="36737672732c8f94d2a973928e1cc1afbb86db54">
+        <dex dex="/Users/Belikovvv/Documents/workspace_for_Android/DCTCamera/app/build/intermediates/pre-dexed/release/ShareSDK-Douban-3.0.1_f5c611d30e2d74af14924f5d8919831938708bd4.jar" />
+    </item>
+    <item
+        is-multidex="false"
+        jar="/Users/Belikovvv/Documents/workspace_for_Android/DCTCamera/app/libs/ShareSDK-Wechat-Moments-3.0.1.jar"
+        jumboMode="false"
+        optimize="true"
+        revision="25.0.2"
+        sha1="5007b4d17d692e57cc90584ab6a1c171b57c937e">
+        <dex dex="/Users/Belikovvv/Documents/workspace_for_Android/DCTCamera/app/build/intermediates/pre-dexed/release/ShareSDK-Wechat-Moments-3.0.1_4cf89a2c48222bb681471a880822b9a0dc286c03.jar" />
+    </item>
+    <item
+        is-multidex="false"
+        jar="/Users/Belikovvv/Documents/workspace_for_Android/DCTCamera/app/libs/ShareSDK-SinaWeibo-3.0.1.jar"
+        jumboMode="false"
+        optimize="true"
+        revision="25.0.2"
+        sha1="f766d71adaac32b6bb15355baf9bd920cb98bf60">
+        <dex dex="/Users/Belikovvv/Documents/workspace_for_Android/DCTCamera/app/build/intermediates/pre-dexed/release/ShareSDK-SinaWeibo-3.0.1_6b8e818c544507fb484eee973bc58d7fa14c312c.jar" />
+    </item>
+    <item
+        is-multidex="false"
+        jar="/Users/Belikovvv/Documents/workspace_for_Android/DCTCamera/app/libs/ShareSDK-Wechat-3.0.1.jar"
+        jumboMode="false"
+        optimize="true"
+        revision="25.0.2"
+        sha1="225f6ecf6e0c3c6de3d0ca0e82f9ad7f801faee4">
+        <dex dex="/Users/Belikovvv/Documents/workspace_for_Android/DCTCamera/app/build/intermediates/pre-dexed/release/ShareSDK-Wechat-3.0.1_5c6e481133757200e0bfe4e672788b4ca92bfab7.jar" />
+    </item>
+    <item
+        is-multidex="true"
+        jar="/Users/Belikovvv/Documents/workspace_for_Android/DCTCamera/app/build/intermediates/incremental-classes/debug/instant-run-bootstrap.jar"
+        jumboMode="true"
+        optimize="true"
+        revision="25.0.2"
+        sha1="98925b9fdc90545d619453f9d25655b860e659e4">
+        <dex dex="/Users/Belikovvv/Documents/workspace_for_Android/DCTCamera/app/build/intermediates/transforms/dex/debug/folders/1000/10000/instant-run-bootstrap_4d8be00aabff2916c4b4da39e3e54c6d38fddc4c/classes.dex" />
+    </item>
+    <item
+        is-multidex="true"
+        jar="/Users/Belikovvv/Documents/workspace_for_Android/DCTCamera/app/libs/ShareSDK-Wechat-3.0.1.jar"
+        jumboMode="true"
+        optimize="true"
+        revision="25.0.2"
+        sha1="225f6ecf6e0c3c6de3d0ca0e82f9ad7f801faee4">
+        <dex dex="/Users/Belikovvv/Documents/workspace_for_Android/DCTCamera/app/build/intermediates/transforms/dex/debug/folders/1000/2/ShareSDK-Wechat-3.0.1_5c6e481133757200e0bfe4e672788b4ca92bfab7/classes.dex" />
+    </item>
+    <item
+        is-multidex="true"
+        jar="/Users/Belikovvv/Documents/workspace_for_Android/DCTCamera/app/libs/MobTools-2017.0801.1522.jar"
+        jumboMode="true"
+        optimize="true"
+        revision="25.0.2"
+        sha1="76e5ee885c150230001e72f7b46a4e7b91ee25c0">
+        <dex dex="/Users/Belikovvv/Documents/workspace_for_Android/DCTCamera/app/build/intermediates/transforms/dex/debug/folders/1000/2/MobTools-2017.0801.1522_7e572da765fb690269c3c9ce6f369f8c727eed4d/classes.dex" />
+    </item>
+    <item
+        is-multidex="false"
+        jar="/Users/Belikovvv/Documents/workspace_for_Android/DCTCamera/app/libs/ShareSDK-Wechat-Core-3.0.1.jar"
+        jumboMode="false"
+        optimize="true"
+        revision="25.0.2"
+        sha1="1ac22d0e1ece0f142a88ff4ef911cd0882c1ac88">
+        <dex dex="/Users/Belikovvv/Documents/workspace_for_Android/DCTCamera/app/build/intermediates/pre-dexed/release/ShareSDK-Wechat-Core-3.0.1_9877a739f8a946ade524357b8cfe1d42245270c2.jar" />
+    </item>
+    <item
+        is-multidex="true"
+        jar="/Users/Belikovvv/Documents/workspace_for_Android/DCTCamera/app/libs/ShareSDK-Wechat-Core-3.0.1.jar"
+        jumboMode="true"
+        optimize="true"
+        revision="25.0.2"
+        sha1="1ac22d0e1ece0f142a88ff4ef911cd0882c1ac88">
+        <dex dex="/Users/Belikovvv/Documents/workspace_for_Android/DCTCamera/app/build/intermediates/transforms/dex/debug/folders/1000/2/ShareSDK-Wechat-Core-3.0.1_9877a739f8a946ade524357b8cfe1d42245270c2/classes.dex" />
+    </item>
+    <item
+        is-multidex="false"
+        jar="/Users/Belikovvv/Documents/workspace_for_Android/DCTCamera/app/libs/MobTools-2017.0801.1522.jar"
+        jumboMode="false"
+        optimize="true"
+        revision="25.0.2"
+        sha1="76e5ee885c150230001e72f7b46a4e7b91ee25c0">
+        <dex dex="/Users/Belikovvv/Documents/workspace_for_Android/DCTCamera/app/build/intermediates/pre-dexed/release/MobTools-2017.0801.1522_7e572da765fb690269c3c9ce6f369f8c727eed4d.jar" />
+    </item>
+    <item
+        is-multidex="false"
+        jar="/Users/Belikovvv/Documents/workspace_for_Android/DCTCamera/app/libs/ShareSDK-TencentWeibo-3.0.1.jar"
+        jumboMode="false"
+        optimize="true"
+        revision="25.0.2"
+        sha1="e21242911c57b6c92d099e3ef7f083bdb6aec12c">
+        <dex dex="/Users/Belikovvv/Documents/workspace_for_Android/DCTCamera/app/build/intermediates/pre-dexed/release/ShareSDK-TencentWeibo-3.0.1_db716efb6e8200a8bdef864b954d88969acdcee2.jar" />
+    </item>
+    <item
+        is-multidex="true"
+        jar="/Users/Belikovvv/Documents/workspace_for_Android/DCTCamera/app/libs/ShareSDK-QZone-3.0.1.jar"
+        jumboMode="true"
+        optimize="true"
+        revision="25.0.2"
+        sha1="54d844ea090ec10e5ed2c31aad955200524653a0">
+        <dex dex="/Users/Belikovvv/Documents/workspace_for_Android/DCTCamera/app/build/intermediates/transforms/dex/debug/folders/1000/2/ShareSDK-QZone-3.0.1_0c33466194faa67ac882813e32e5a62fa4a0c61b/classes.dex" />
+    </item>
+    <item
+        is-multidex="false"
+        jar="/Users/Belikovvv/Documents/workspace_for_Android/DCTCamera/app/libs/ShareSDK-Alipay-3.0.1.jar"
+        jumboMode="false"
+        optimize="true"
+        revision="25.0.2"
+        sha1="7972a130277ef49afe2d84534a326603fd04d7e8">
+        <dex dex="/Users/Belikovvv/Documents/workspace_for_Android/DCTCamera/app/build/intermediates/pre-dexed/release/ShareSDK-Alipay-3.0.1_3f25c5e83cc1779473dea6ed974388d478b1aeb1.jar" />
+    </item>
+    <item
+        is-multidex="true"
+        jar="/Users/Belikovvv/Documents/workspace_for_Android/DCTCamera/app/libs/ShareSDK-TencentWeibo-3.0.1.jar"
+        jumboMode="true"
+        optimize="true"
+        revision="25.0.2"
+        sha1="e21242911c57b6c92d099e3ef7f083bdb6aec12c">
+        <dex dex="/Users/Belikovvv/Documents/workspace_for_Android/DCTCamera/app/build/intermediates/transforms/dex/debug/folders/1000/2/ShareSDK-TencentWeibo-3.0.1_db716efb6e8200a8bdef864b954d88969acdcee2/classes.dex" />
+    </item>
+    <item
+        is-multidex="true"
+        jar="/Users/Belikovvv/Documents/workspace_for_Android/DCTCamera/app/libs/ShareSDK-Alipay-3.0.1.jar"
+        jumboMode="true"
+        optimize="true"
+        revision="25.0.2"
+        sha1="7972a130277ef49afe2d84534a326603fd04d7e8">
+        <dex dex="/Users/Belikovvv/Documents/workspace_for_Android/DCTCamera/app/build/intermediates/transforms/dex/debug/folders/1000/2/ShareSDK-Alipay-3.0.1_3f25c5e83cc1779473dea6ed974388d478b1aeb1/classes.dex" />
+    </item>
+    <item
+        is-multidex="false"
+        jar="/Users/Belikovvv/Documents/workspace_for_Android/DCTCamera/app/libs/ShareSDK-QZone-3.0.1.jar"
+        jumboMode="false"
+        optimize="true"
+        revision="25.0.2"
+        sha1="54d844ea090ec10e5ed2c31aad955200524653a0">
+        <dex dex="/Users/Belikovvv/Documents/workspace_for_Android/DCTCamera/app/build/intermediates/pre-dexed/release/ShareSDK-QZone-3.0.1_0c33466194faa67ac882813e32e5a62fa4a0c61b.jar" />
+    </item>
+    <item
+        is-multidex="false"
+        jar="/Users/Belikovvv/Documents/workspace_for_Android/DCTCamera/app/libs/ShareSDK-Core-3.0.1.jar"
+        jumboMode="false"
+        optimize="true"
+        revision="25.0.2"
+        sha1="7b223a8a1cf08635e566d8744473667d17aa8374">
+        <dex dex="/Users/Belikovvv/Documents/workspace_for_Android/DCTCamera/app/build/intermediates/pre-dexed/release/ShareSDK-Core-3.0.1_a0392c2c2099a2ef146f33643cdad27b033257c2.jar" />
+    </item>
+    <item
+        is-multidex="true"
+        jar="/Users/Belikovvv/Documents/workspace_for_Android/DCTCamera/app/libs/ShareSDK-Core-3.0.1.jar"
+        jumboMode="true"
+        optimize="true"
+        revision="25.0.2"
+        sha1="7b223a8a1cf08635e566d8744473667d17aa8374">
+        <dex dex="/Users/Belikovvv/Documents/workspace_for_Android/DCTCamera/app/build/intermediates/transforms/dex/debug/folders/1000/2/ShareSDK-Core-3.0.1_a0392c2c2099a2ef146f33643cdad27b033257c2/classes.dex" />
+    </item>
+    <item
+        is-multidex="true"
+        jar="/Users/Belikovvv/Documents/workspace_for_Android/DCTCamera/app/build/intermediates/incremental-runtime-classes/debug/instant-run.jar"
+        jumboMode="true"
+        optimize="true"
+        revision="25.0.2"
+        sha1="3be78ebc2706b2e1fe2f12d5726887a92d6c183b">
+        <dex dex="/Users/Belikovvv/Documents/workspace_for_Android/DCTCamera/app/build/intermediates/transforms/dex/debug/folders/1000/10000/instant-run_3d1e8a48a5dca82c7834989693e2fbf143162b17/classes.dex" />
+    </item>
+    <item
+        is-multidex="true"
+        jar="/Users/Belikovvv/Documents/workspace_for_Android/DCTCamera/app/libs/ShareSDK-ShortMessage-3.0.1.jar"
+        jumboMode="true"
+        optimize="true"
+        revision="25.0.2"
+        sha1="af460d0c5b2c49d4d86052842329b6fe7e3b47bb">
+        <dex dex="/Users/Belikovvv/Documents/workspace_for_Android/DCTCamera/app/build/intermediates/transforms/dex/debug/folders/1000/2/ShareSDK-ShortMessage-3.0.1_ee8c4cff0d290c99a9f5596a2a5f96c93901bbd3/classes.dex" />
+    </item>
+    <item
+        is-multidex="true"
+        jar="/Users/Belikovvv/Documents/workspace_for_Android/DCTCamera/app/libs/ShareSDK-Alipay-Moments-3.0.1.jar"
+        jumboMode="true"
+        optimize="true"
+        revision="25.0.2"
+        sha1="e02bcbdb190bd14629d3d3c59968903566750c09">
+        <dex dex="/Users/Belikovvv/Documents/workspace_for_Android/DCTCamera/app/build/intermediates/transforms/dex/debug/folders/1000/2/ShareSDK-Alipay-Moments-3.0.1_c5e918ed6bb92182281332368384e72beae46e8c/classes.dex" />
+    </item>
+    <item
+        is-multidex="false"
+        jar="/Users/Belikovvv/Documents/workspace_for_Android/DCTCamera/app/libs/ShareSDK-Email-3.0.1.jar"
+        jumboMode="false"
+        optimize="true"
+        revision="25.0.2"
+        sha1="8a150244d811bacb833baa06983ecfbc4ff4c801">
+        <dex dex="/Users/Belikovvv/Documents/workspace_for_Android/DCTCamera/app/build/intermediates/pre-dexed/release/ShareSDK-Email-3.0.1_b9e5062b6fd072c635c7be4636291a39f5abf216.jar" />
+    </item>
+    <item
+        is-multidex="false"
+        jar="/Users/Belikovvv/Documents/workspace_for_Android/DCTCamera/app/libs/ShareSDK-Alipay-Core-3.0.1.jar"
+        jumboMode="false"
+        optimize="true"
+        revision="25.0.2"
+        sha1="3871fd671d88a6692be27a1a303cbc738863587c">
+        <dex dex="/Users/Belikovvv/Documents/workspace_for_Android/DCTCamera/app/build/intermediates/pre-dexed/release/ShareSDK-Alipay-Core-3.0.1_94267159a0f2d4664dd3f0548a758afa8a3e7976.jar" />
+    </item>
+    <item
+        is-multidex="true"
+        jar="/Users/Belikovvv/Documents/workspace_for_Android/DCTCamera/app/libs/ShareSDK-Renren-3.0.1.jar"
+        jumboMode="true"
+        optimize="true"
+        revision="25.0.2"
+        sha1="c61bc811be915bad8d2ced2ad02aa5caf39e6a7f">
+        <dex dex="/Users/Belikovvv/Documents/workspace_for_Android/DCTCamera/app/build/intermediates/transforms/dex/debug/folders/1000/2/ShareSDK-Renren-3.0.1_5b35b4f91343d3ad26bd76351c806a0f3be833ee/classes.dex" />
+    </item>
+    <item
+        is-multidex="true"
+        jar="/Users/Belikovvv/Documents/workspace_for_Android/DCTCamera/app/libs/ShareSDK-Alipay-Core-3.0.1.jar"
+        jumboMode="true"
+        optimize="true"
+        revision="25.0.2"
+        sha1="3871fd671d88a6692be27a1a303cbc738863587c">
+        <dex dex="/Users/Belikovvv/Documents/workspace_for_Android/DCTCamera/app/build/intermediates/transforms/dex/debug/folders/1000/2/ShareSDK-Alipay-Core-3.0.1_94267159a0f2d4664dd3f0548a758afa8a3e7976/classes.dex" />
+    </item>
+    <item
+        is-multidex="false"
+        jar="/Users/Belikovvv/Documents/workspace_for_Android/DCTCamera/app/libs/ShareSDK-ShortMessage-3.0.1.jar"
+        jumboMode="false"
+        optimize="true"
+        revision="25.0.2"
+        sha1="af460d0c5b2c49d4d86052842329b6fe7e3b47bb">
+        <dex dex="/Users/Belikovvv/Documents/workspace_for_Android/DCTCamera/app/build/intermediates/pre-dexed/release/ShareSDK-ShortMessage-3.0.1_ee8c4cff0d290c99a9f5596a2a5f96c93901bbd3.jar" />
+    </item>
+    <item
+        is-multidex="true"
+        jar="/Users/Belikovvv/Documents/workspace_for_Android/DCTCamera/app/libs/ShareSDK-Email-3.0.1.jar"
+        jumboMode="true"
+        optimize="true"
+        revision="25.0.2"
+        sha1="8a150244d811bacb833baa06983ecfbc4ff4c801">
+        <dex dex="/Users/Belikovvv/Documents/workspace_for_Android/DCTCamera/app/build/intermediates/transforms/dex/debug/folders/1000/2/ShareSDK-Email-3.0.1_b9e5062b6fd072c635c7be4636291a39f5abf216/classes.dex" />
+    </item>
+    <item
+        is-multidex="false"
+        jar="/Users/Belikovvv/Documents/workspace_for_Android/DCTCamera/app/libs/ShareSDK-Renren-3.0.1.jar"
+        jumboMode="false"
+        optimize="true"
+        revision="25.0.2"
+        sha1="c61bc811be915bad8d2ced2ad02aa5caf39e6a7f">
+        <dex dex="/Users/Belikovvv/Documents/workspace_for_Android/DCTCamera/app/build/intermediates/pre-dexed/release/ShareSDK-Renren-3.0.1_5b35b4f91343d3ad26bd76351c806a0f3be833ee.jar" />
+    </item>
+    <item
+        is-multidex="false"
+        jar="/Users/Belikovvv/Documents/workspace_for_Android/DCTCamera/app/libs/MobCommons-2017.0801.1522.jar"
+        jumboMode="false"
+        optimize="true"
+        revision="25.0.2"
+        sha1="524ffbeafa01876a56bb4254a9908908f2fad415">
+        <dex dex="/Users/Belikovvv/Documents/workspace_for_Android/DCTCamera/app/build/intermediates/pre-dexed/release/MobCommons-2017.0801.1522_341500d09f9f8ab0a76dee616c212313f083d0a8.jar" />
+    </item>
+    <item
+        is-multidex="false"
+        jar="/Users/Belikovvv/Documents/workspace_for_Android/DCTCamera/app/libs/ShareSDK-Alipay-Moments-3.0.1.jar"
+        jumboMode="false"
+        optimize="true"
+        revision="25.0.2"
+        sha1="e02bcbdb190bd14629d3d3c59968903566750c09">
+        <dex dex="/Users/Belikovvv/Documents/workspace_for_Android/DCTCamera/app/build/intermediates/pre-dexed/release/ShareSDK-Alipay-Moments-3.0.1_c5e918ed6bb92182281332368384e72beae46e8c.jar" />
+    </item>
+    <item
+        is-multidex="true"
+        jar="/Users/Belikovvv/Documents/workspace_for_Android/DCTCamera/app/libs/MobCommons-2017.0801.1522.jar"
+        jumboMode="true"
+        optimize="true"
+        revision="25.0.2"
+        sha1="524ffbeafa01876a56bb4254a9908908f2fad415">
+        <dex dex="/Users/Belikovvv/Documents/workspace_for_Android/DCTCamera/app/build/intermediates/transforms/dex/debug/folders/1000/2/MobCommons-2017.0801.1522_341500d09f9f8ab0a76dee616c212313f083d0a8/classes.dex" />
+    </item>
+
+</items>
