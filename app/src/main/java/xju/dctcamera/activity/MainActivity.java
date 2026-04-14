@@ -8,6 +8,8 @@ import android.net.Uri;
 import android.net.wifi.WifiManager;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.provider.Settings;
 
 import androidx.annotation.NonNull;
@@ -23,6 +25,8 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import java.io.File;
+import java.util.ArrayList;
+import java.util.List;
 
 import xju.dctcamera.AtyContainer;
 import xju.dctcamera.R;
@@ -48,11 +52,6 @@ public class MainActivity extends AppCompatActivity {
      */
     private static final int PERMISSION_REQUEST_CODE = 100;
 
-    /**
-     * 所有必要权限已授予的标志
-     */
-    private static final int ALL_PERMISSIONS_GRANTED = 0;
-
     private static final String FEEDBACK_EMAIL = "malcolmsuen@gmail.com";
     private static final String SHARE_TITLE = "天山印象";
     private static final String SHARE_TEXT = "独乐乐不如众乐乐，发现了一个有趣的相机应用，快来下载吧～";
@@ -60,7 +59,6 @@ public class MainActivity extends AppCompatActivity {
 
     private CapturePhotoHelper capturePhotoHelper;
     private File restorePhotoFile;
-    private boolean isWaitingForPermissionResult = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -68,7 +66,7 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
 
         AtyContainer.getInstance().addActivity(this);
-        
+
         // 初始化 FolderManager
         FolderManager.getInstance().initialize(this);
 
@@ -76,25 +74,55 @@ public class MainActivity extends AppCompatActivity {
         displayDeviceInfo();
         setupClickListeners();
 
-        // 启动时检查并请求权限
-        checkAndRequestPermissions();
+        // 延迟请求权限，确保 UI 已完全加载
+        new Handler(Looper.getMainLooper()).postDelayed(this::checkAndRequestPermissions, 500);
     }
 
     /**
      * 检查并请求必要的权限
      */
     private void checkAndRequestPermissions() {
-        String[] requiredPermissions = getRequiredPermissions();
-        String[] missingPermissions = getMissingPermissions(requiredPermissions);
+        try {
+            List<String> missingPermissions = getMissingPermissions();
 
-        if (missingPermissions.length > 0) {
-            Log.d(TAG, "请求缺失的权限: " + missingPermissions.length + " 个");
-            ActivityCompat.requestPermissions(this, missingPermissions, PERMISSION_REQUEST_CODE);
-            isWaitingForPermissionResult = true;
-        } else {
-            Log.d(TAG, "所有必要权限已授予");
-            isWaitingForPermissionResult = false;
+            if (missingPermissions.isEmpty()) {
+                Log.d(TAG, "所有必要权限已授予");
+                return;
+            }
+
+            Log.d(TAG, "请求缺失的权限: " + missingPermissions.size() + " 个");
+            ActivityCompat.requestPermissions(
+                    this,
+                    missingPermissions.toArray(new String[0]),
+                    PERMISSION_REQUEST_CODE
+            );
+        } catch (Exception e) {
+            Log.e(TAG, "权限请求失败", e);
+            Toast.makeText(this, "权限请求失败，请手动在设置中授予权限", Toast.LENGTH_LONG).show();
         }
+    }
+
+    /**
+     * 获取尚未授予的权限列表
+     */
+    private List<String> getMissingPermissions() {
+        List<String> missingList = new ArrayList<>();
+        String[] requiredPermissions = getRequiredPermissions();
+
+        for (String permission : requiredPermissions) {
+            try {
+                if (ContextCompat.checkSelfPermission(this, permission)
+                        != PackageManager.PERMISSION_GRANTED) {
+                    missingList.add(permission);
+                }
+            } catch (Exception e) {
+                Log.w(TAG, "检查权限时出错: " + permission, e);
+                // 如果检查失败，假设权限缺失
+                missingList.add(permission);
+            }
+        }
+
+        return missingList;
     }
 
     /**
@@ -103,9 +131,10 @@ public class MainActivity extends AppCompatActivity {
     private String[] getRequiredPermissions() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             // Android 13+ (API 33+)
+            // 使用字符串避免编译问题
             return new String[]{
                     Manifest.permission.CAMERA,
-                    Manifest.permission.READ_MEDIA_IMAGES
+                    "android.permission.READ_MEDIA_IMAGES"
             };
         } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             // Android 11-12 (API 30-32)
@@ -124,31 +153,10 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /**
-     * 获取尚未授予的权限列表
-     */
-    private String[] getMissingPermissions(String[] requiredPermissions) {
-        java.util.List<String> missingList = new java.util.ArrayList<>();
-        for (String permission : requiredPermissions) {
-            if (ContextCompat.checkSelfPermission(this, permission)
-                    != PackageManager.PERMISSION_GRANTED) {
-                missingList.add(permission);
-            }
-        }
-        return missingList.toArray(new String[0]);
-    }
-
-    /**
      * 检查是否拥有所有必要权限
      */
     private boolean hasAllPermissions() {
-        String[] requiredPermissions = getRequiredPermissions();
-        for (String permission : requiredPermissions) {
-            if (ContextCompat.checkSelfPermission(this, permission)
-                    != PackageManager.PERMISSION_GRANTED) {
-                return false;
-            }
-        }
-        return true;
+        return getMissingPermissions().isEmpty();
     }
 
     private void initToolbar() {
@@ -277,7 +285,7 @@ public class MainActivity extends AppCompatActivity {
     private void startCamera() {
         if (capturePhotoHelper == null) {
             capturePhotoHelper = new CapturePhotoHelper(
-                    this, 
+                    this,
                     FolderManager.getInstance().getPhotoFolder()
             );
         }
@@ -288,7 +296,6 @@ public class MainActivity extends AppCompatActivity {
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions,
                                            @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        isWaitingForPermissionResult = false;
 
         if (requestCode == PERMISSION_REQUEST_CODE) {
             int deniedCount = 0;
@@ -342,7 +349,7 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        
+
         if (requestCode == CapturePhotoHelper.CAPTURE_PHOTO_REQUEST_CODE) {
             handleCameraResult(resultCode);
         }
@@ -384,18 +391,5 @@ public class MainActivity extends AppCompatActivity {
         Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
         intent.setData(Uri.parse("package:" + getPackageName()));
         startActivity(intent);
-    }
-
-    @Override
-    protected void onResume() {
-        super.onResume();
-        // 如果之前在等待权限结果，返回时重新检查权限状态
-        if (!isWaitingForPermissionResult) {
-            if (!hasAllPermissions()) {
-                Log.d(TAG, "onResume: 权限未授予");
-            } else {
-                Log.d(TAG, "onResume: 权限已授予");
-            }
-        }
     }
 }
