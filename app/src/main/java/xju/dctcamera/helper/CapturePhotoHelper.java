@@ -3,126 +3,163 @@ package xju.dctcamera.helper;
 import android.app.Activity;
 import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.content.pm.ResolveInfo;
 import android.net.Uri;
 import android.provider.MediaStore;
 import android.widget.Toast;
 
 import java.io.File;
-import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
-import java.util.List;
+import java.util.Locale;
 
-import xju.dctcamera.R;
-import xju.dctcamera.utils.bitmap.BitmapUtils;
+import xju.dctcamera.manager.FolderManager;
 
 /**
- * 拍照辅助类
- *
+ * 拍照帮助类
+ * <p>
+ * 处理拍照逻辑，包括文件创建、Intent 启动、结果处理
+ * </p>
  */
-
 public class CapturePhotoHelper {
 
-    private final static String TIMESTAMP_FORMAT = "yyyy_MM_dd_HH_mm_ss";
-
-    public final static int CAPTURE_PHOTO_REQUEST_CODE = 0x1111;
-
-    private Activity mActivity;
     /**
-     * 存放图片的目录
+     * 拍照请求码
      */
-    private File mPhotoFolder;
-    /**
-     * 拍照生成的图片文件
-     */
-    private File mPhotoFile;
+    public static final int CAPTURE_PHOTO_REQUEST_CODE = 0x1;
 
     /**
-     * @param activity
-     * @param photoFolder 存放生成照片的目录，目录不存在时候会自动创建，但不允许为null;
+     * 照片文件名前缀
+     */
+    private static final String PHOTO_FILE_PREFIX = "IMG_";
+
+    /**
+     * 照片文件名后缀
+     */
+    private static final String PHOTO_FILE_SUFFIX = ".jpg";
+
+    /**
+     * 日期格式（用于文件名）
+     */
+    private static final String DATE_FORMAT_PATTERN = "yyyyMMdd_HHmmss";
+
+    /**
+     * Activity 实例
+     */
+    private final Activity activity;
+
+    /**
+     * 照片存储目录
+     */
+    private final File photoFolder;
+
+    /**
+     * 当前拍摄的照片文件
+     */
+    private File currentPhotoFile;
+
+    /**
+     * 构造函数
+     *
+     * @param activity    Activity 实例
+     * @param photoFolder 照片存储目录
      */
     public CapturePhotoHelper(Activity activity, File photoFolder) {
-        this.mActivity = activity;
-        this.mPhotoFolder = photoFolder;
+        if (activity == null) {
+            throw new IllegalArgumentException("Activity cannot be null");
+        }
+        this.activity = activity;
+        this.photoFolder = photoFolder;
     }
 
     /**
-     * 拍照
+     * 启动拍照
+     *
+     * @return 如果成功启动返回 true，否则返回 false
      */
-    public void capture() {
-        if (hasCamera()) {
-            createPhotoFile();
-
-            if (mPhotoFile == null) {
-                Toast.makeText(mActivity, R.string.camera_open_error, Toast.LENGTH_SHORT).show();
-                return;
-            }
-
-            Intent captureIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
-            Uri fileUri = Uri.fromFile(mPhotoFile);
-            captureIntent.putExtra(MediaStore.EXTRA_OUTPUT, fileUri);
-            mActivity.startActivityForResult(captureIntent, CAPTURE_PHOTO_REQUEST_CODE);
-
-        } else {
-            Toast.makeText(mActivity, R.string.camera_open_error, Toast.LENGTH_SHORT).show();
+    public boolean capture() {
+        if (!isCameraAvailable()) {
+            showToast("无法打开相机");
+            return false;
         }
+
+        // 创建照片文件
+        currentPhotoFile = createPhotoFile();
+        if (currentPhotoFile == null) {
+            showToast("无法创建照片文件");
+            return false;
+        }
+
+        // 启动拍照 Intent
+        Intent captureIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+        Uri photoUri = Uri.fromFile(currentPhotoFile);
+        captureIntent.putExtra(MediaStore.EXTRA_OUTPUT, photoUri);
+
+        try {
+            activity.startActivityForResult(captureIntent, CAPTURE_PHOTO_REQUEST_CODE);
+            return true;
+        } catch (Exception e) {
+            showToast("启动相机失败");
+            return false;
+        }
+    }
+
+    /**
+     * 获取当前照片文件
+     *
+     * @return 当前照片文件
+     */
+    public File getPhoto() {
+        return currentPhotoFile;
+    }
+
+    /**
+     * 设置当前照片文件（用于状态恢复）
+     *
+     * @param photoFile 照片文件
+     */
+    public void setPhoto(File photoFile) {
+        this.currentPhotoFile = photoFile;
+    }
+
+    /**
+     * 检查相机是否可用
+     *
+     * @return 如果相机可用返回 true
+     */
+    private boolean isCameraAvailable() {
+        PackageManager packageManager = activity.getPackageManager();
+        return packageManager.hasSystemFeature(PackageManager.FEATURE_CAMERA);
     }
 
     /**
      * 创建照片文件
+     *
+     * @return 创建的照片文件，失败返回 null
      */
-    private void createPhotoFile() {
-        if (mPhotoFolder != null) {
-            if (!mPhotoFolder.exists()) {//检查保存图片的目录存不存在
-                mPhotoFolder.mkdirs();
-            }
-
-            String fileName = new SimpleDateFormat(TIMESTAMP_FORMAT).format(new Date());
-            mPhotoFile = new File(mPhotoFolder, fileName + BitmapUtils.JPG_SUFFIX);
-            if (mPhotoFile.exists()) {
-                mPhotoFile.delete();
-            }
-            try {
-                mPhotoFile.createNewFile();
-            } catch (IOException e) {
-                e.printStackTrace();
-                mPhotoFile = null;
-            }
-        } else {
-            mPhotoFile = null;
-            Toast.makeText(mActivity, R.string.not_specify_a_directory, Toast.LENGTH_SHORT).show();
+    private File createPhotoFile() {
+        if (photoFolder == null) {
+            return null;
         }
-    }
 
+        // 确保目录存在
+        if (!photoFolder.exists() && !photoFolder.mkdirs()) {
+            return null;
+        }
 
-    /**
-     * 判断系统中是否存在可以启动的相机应用
-     *
-     * @return 存在返回true，不存在返回false
-     */
-    public boolean hasCamera() {
-        PackageManager packageManager = mActivity.getPackageManager();
-        Intent intent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
-        List<ResolveInfo> list = packageManager.queryIntentActivities(intent, PackageManager.MATCH_DEFAULT_ONLY);
-        return list.size() > 0;
-    }
+        // 生成文件名
+        String timeStamp = new SimpleDateFormat(DATE_FORMAT_PATTERN, Locale.getDefault())
+                .format(new Date());
+        String fileName = PHOTO_FILE_PREFIX + timeStamp + PHOTO_FILE_SUFFIX;
 
-    /**
-     * 获取当前拍到的图片文件
-     *
-     * @return
-     */
-    public File getPhoto() {
-        return mPhotoFile;
+        return new File(photoFolder, fileName);
     }
 
     /**
-     * 设置照片文件
+     * 显示 Toast 提示
      *
-     * @param photoFile
+     * @param message 提示消息
      */
-    public void setPhoto(File photoFile) {
-        this.mPhotoFile = photoFile;
+    private void showToast(String message) {
+        Toast.makeText(activity, message, Toast.LENGTH_SHORT).show();
     }
 }

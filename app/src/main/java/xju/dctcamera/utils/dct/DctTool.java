@@ -1,94 +1,133 @@
 package xju.dctcamera.utils.dct;
 
 import android.graphics.Bitmap;
+import android.util.Log;
 
 import xju.dctcamera.utils.dct.net.watermark.Watermark;
 
-
 /**
- * DctTool工具类
- *直接电影工具类方法，即可实现dct算法
+ * DCT 水印工具类
+ * <p>
+ * 提供基于 DCT（离散余弦变换）算法的图片水印嵌入和提取功能。
+ * </p>
  *
+ * @author Belikovvv
+ * @since 2017
  */
-public class DctTool {
-//测试之后的参数，请测试后改动。
+public final class DctTool {
+
+    private static final String TAG = "DctTool";
+
+    /**
+     * 默认错误提示信息
+     */
+    private static final String DEFAULT_ERROR_MESSAGE = "取水印error，请重新尝试";
+
     /**
      * 量化像素的盒模型大小
      */
-    private static int boxSize = 7;
-    /**
-     * 纠删码的位数，没有错误就是0
-     */
-    private static int errorCorrection = 0;
-    /**
-     * 增加水印的透明度
-     */
-    private static double opacity = 0.5;
-    /**
-     * 水印随机取样
-     */
-    private static long seed1 = 10;
-    /**
-     * 嵌入随机取样
-     */
-    private static long seed2 = 15;
-
+    private static final int BOX_SIZE = 7;
 
     /**
-     * 对bitmap加bitmap水印
-     *
-     * @param imageSrc
-     * @param watermark
+     * 纠删码的位数，没有错误就是 0
      */
-    public static void dctImage(Bitmap imageSrc, Bitmap watermark) {
-        Watermark water = new Watermark(boxSize, errorCorrection, opacity, seed1, seed2);
+    private static final int ERROR_CORRECTION = 0;
 
+    /**
+     * 水印透明度（0.0 - 1.0）
+     */
+    private static final double OPACITY = 0.5;
+
+    /**
+     * 水印随机取样种子
+     */
+    private static final long SEED_WATERMARK = 10L;
+
+    /**
+     * 嵌入随机取样种子
+     */
+    private static final long SEED_EMBED = 15L;
+
+    /**
+     * 私有构造函数，防止实例化
+     */
+    private DctTool() {
+        throw new UnsupportedOperationException("Utility class cannot be instantiated");
     }
 
     /**
-     * 对bitmap加string水印
+     * 对 Bitmap 添加 Bitmap 水印
      *
-     * @param Bitmap
-     * @param watermark
-     * @return
+     * @param imageSource  原始图片，不可为 null
+     * @param watermark    水印图片，不可为 null
+     * @deprecated 此方法尚未实现
      */
-    public static Bitmap dctString(Bitmap Bitmap, String watermark) {
-        Watermark water = new Watermark(boxSize, errorCorrection, opacity, seed1, seed2);
-        Bitmap dstImage = water.embed(Bitmap, watermark);
-        return dstImage;
+    @Deprecated
+    public static void dctImage(Bitmap imageSource, Bitmap watermark) {
+        Watermark water = new Watermark(BOX_SIZE, ERROR_CORRECTION, OPACITY, SEED_WATERMARK, SEED_EMBED);
+        // TODO: 实现 Bitmap 水印嵌入逻辑
     }
 
     /**
-     * 对bitmap取sting水印
+     * 对 Bitmap 添加字符串水印
      *
-     * @param imageDst
-     * @return
+     * @param sourceBitmap 原始图片，不可为 null
+     * @param watermark    水印文本，不可为 null
+     * @return 嵌入水印后的 Bitmap
      */
-    public static String unDctString(Bitmap imageDst) {
-        Watermark water = new Watermark(boxSize, errorCorrection, opacity, seed1, seed2);
+    public static Bitmap dctString(Bitmap sourceBitmap, String watermark) {
+        if (sourceBitmap == null) {
+            throw new IllegalArgumentException("Source bitmap cannot be null");
+        }
+        if (watermark == null) {
+            throw new IllegalArgumentException("Watermark text cannot be null");
+        }
+
+        Watermark water = new Watermark(BOX_SIZE, ERROR_CORRECTION, OPACITY, SEED_WATERMARK, SEED_EMBED);
+        return water.embed(sourceBitmap, watermark);
+    }
+
+    /**
+     * 从 Bitmap 中提取字符串水印
+     *
+     * @param destinationBitmap 包含水印的图片，不可为 null
+     * @return 提取的水印文本，提取失败时返回错误提示
+     */
+    public static String unDctString(Bitmap destinationBitmap) {
+        if (destinationBitmap == null) {
+            throw new IllegalArgumentException("Destination bitmap cannot be null");
+        }
+
+        Watermark water = new Watermark(BOX_SIZE, ERROR_CORRECTION, OPACITY, SEED_WATERMARK, SEED_EMBED);
         try {
-            String message = water.extractText(imageDst);
+            String message = water.extractText(destinationBitmap);
             return message;
         } catch (Exception e) {
-            e.getMessage();
+            Log.e(TAG, "Failed to extract watermark", e);
+            return DEFAULT_ERROR_MESSAGE;
         }
-        return "取水印error，请重新尝试";
-
     }
 
     /**
-     * 对bitmap 取bitmap水印
+     * 从 Bitmap 中提取 Bitmap 水印
      *
-     * @param imageDst
+     * @param destinationBitmap 包含水印的图片，不可为 null
+     * @deprecated 此方法尚未实现
      */
-    public static void unDctImage(Bitmap imageDst) {
-        Watermark water = new Watermark(boxSize, errorCorrection, opacity, seed1, seed2);
-        try {
-            String message = water.extractText(imageDst);
-        } catch (Exception e) {
-            e.getMessage();
+    @Deprecated
+    public static void unDctImage(Bitmap destinationBitmap) {
+        if (destinationBitmap == null) {
+            throw new IllegalArgumentException("Destination bitmap cannot be null");
         }
 
+        Watermark water = new Watermark(BOX_SIZE, ERROR_CORRECTION, OPACITY, SEED_WATERMARK, SEED_EMBED);
+        try {
+            String message = water.extractText(destinationBitmap);
+            // TODO: 实现 Bitmap 水印提取逻辑
+            Log.d(TAG, "Extracted message: " + message);
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to extract watermark", e);
+        }
     }
 }
 

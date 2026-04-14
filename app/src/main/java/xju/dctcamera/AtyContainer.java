@@ -2,53 +2,113 @@ package xju.dctcamera;
 
 import android.app.Activity;
 
+import java.lang.ref.WeakReference;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 
 /**
+ * Activity 容器管理类
+ * <p>
+ * 使用 WeakReference 防止 Activity 内存泄漏
+ * 提供线程安全的 Activity 管理方法
+ * </p>
+ *
  * Created by Belikovvv on 2017/7/26.
  */
-
 public class AtyContainer {
+
+    private static final String TAG = "AtyContainer";
+
+    private static volatile AtyContainer instance;
+    private static final List<WeakReference<Activity>> activityStack = new ArrayList<>();
 
     private AtyContainer() {
     }
 
-    private static AtyContainer instance = new AtyContainer();
-    private static List<Activity> activityStack = new ArrayList<Activity>();
-
+    /**
+     * 获取单例实例
+     */
     public static AtyContainer getInstance() {
+        if (instance == null) {
+            synchronized (AtyContainer.class) {
+                if (instance == null) {
+                    instance = new AtyContainer();
+                }
+            }
+        }
         return instance;
     }
 
-    public void addActivity(Activity aty) {
-        activityStack.add(aty);
-    }
-
-    public void removeActivity(Activity aty) {
-        activityStack.remove(aty);
+    /**
+     * 添加 Activity 到栈
+     *
+     * @param activity 要添加的 Activity
+     */
+    public synchronized void addActivity(Activity activity) {
+        if (activity != null) {
+            activityStack.add(new WeakReference<>(activity));
+            cleanRecycledActivities();
+        }
     }
 
     /**
-     * 获取当前Activity（栈顶）
+     * 从栈中移除 Activity
+     *
+     * @param activity 要移除的 Activity
      */
-    public Activity getCurrentActivity() {
+    public synchronized void removeActivity(Activity activity) {
+        if (activity != null) {
+            Iterator<WeakReference<Activity>> iterator = activityStack.iterator();
+            while (iterator.hasNext()) {
+                WeakReference<Activity> ref = iterator.next();
+                Activity activityFromRef = ref.get();
+                if (activityFromRef == null || activityFromRef == activity) {
+                    iterator.remove();
+                }
+            }
+        }
+    }
+
+    /**
+     * 获取当前 Activity（栈顶）
+     *
+     * @return 当前 Activity，如果不存在则返回 null
+     */
+    public synchronized Activity getCurrentActivity() {
+        cleanRecycledActivities();
         if (activityStack.isEmpty()) {
             return null;
         }
-        return activityStack.get(activityStack.size() - 1);
+        WeakReference<Activity> ref = activityStack.get(activityStack.size() - 1);
+        return ref.get();
     }
 
     /**
-     * 结束所有Activity
+     * 结束所有 Activity
      */
-    public void finishAllActivity() {
-        for (int i = 0, size = activityStack.size(); i < size; i++) {
-            if (null != activityStack.get(i)) {
-                activityStack.get(i).finish();
+    public synchronized void finishAllActivity() {
+        for (WeakReference<Activity> ref : activityStack) {
+            Activity activity = ref.get();
+            if (activity != null && !activity.isFinishing()) {
+                activity.finish();
             }
         }
         activityStack.clear();
     }
-}
 
+    /**
+     * 清理已被 GC 回收的 Activity 引用
+     */
+    private synchronized void cleanRecycledActivities() {
+        activityStack.removeIf(ref -> ref.get() == null || ref.get().isFinishing());
+    }
+
+    /**
+     * 获取当前存活的 Activity 数量
+     */
+    public synchronized int getAliveActivityCount() {
+        cleanRecycledActivities();
+        return activityStack.size();
+    }
+}

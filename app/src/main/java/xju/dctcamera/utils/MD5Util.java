@@ -1,43 +1,72 @@
 package xju.dctcamera.utils;
 
-import android.text.TextUtils;
-
+import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
 /**
- * Created by Belikovvv on 2017/8/14.
+ * MD5 加密工具类
+ * <p>
+ * 提供字符串到 MD5 哈希的转换
+ * </p>
  */
-
-public class MD5Util {
+public final class MD5Util {
 
     /**
-     * 对外提供getMD5(String)方法
+     * 字节掩码（用于 byte 转 int）
      */
+    private static final int BYTE_MASK = 0xff;
 
-    public static String getMD5(String string) {
-        if (TextUtils.isEmpty(string)) {
-            return "";
+    /**
+     * 十六进制字符表
+     */
+    private static final char[] HEX_CHARS = "0123456789abcdef".toCharArray();
+
+    /**
+     * 私有构造函数，防止实例化
+     */
+    private MD5Util() {
+        throw new UnsupportedOperationException("Utility class, do not instantiate");
+    }
+
+    /**
+     * 计算字符串的 MD5 值
+     *
+     * @param content 要加密的字符串
+     * @return MD5 哈希值（32位十六进制字符串），如果加密失败则返回 null
+     */
+    public static String getMD5(String content) {
+        if (content == null || content.isEmpty()) {
+            return null;
         }
-        MessageDigest md5 = null;
+
         try {
-            md5 = MessageDigest.getInstance("MD5");
-            byte[] bytes = md5.digest(string.getBytes());
-            String result = "";
-            for (byte b : bytes) {
-                String temp = Integer.toHexString(b & 0xff);
-                if (temp.length() == 1) {
-                    temp = "0" + temp;
-                }
-                result += temp;
-            }
-            return result;
+            MessageDigest messageDigest = MessageDigest.getInstance("MD5");
+            byte[] inputBytes = content.getBytes(StandardCharsets.UTF_8);
+            byte[] hashBytes = messageDigest.digest(inputBytes);
+            return bytesToHex(hashBytes);
         } catch (NoSuchAlgorithmException e) {
-            e.printStackTrace();
+            // MD5 算法在所有 Android 设备上都可用，此处不应发生
+            throw new IllegalStateException("MD5 algorithm not available", e);
         }
-        return "";
+    }
+
+    /**
+     * 将字节数组转换为十六进制字符串
+     *
+     * @param bytes 字节数组
+     * @return 十六进制字符串
+     */
+    private static String bytesToHex(byte[] bytes) {
+        StringBuilder hexString = new StringBuilder(bytes.length * 2);
+        for (byte b : bytes) {
+            int intVal = b & BYTE_MASK;
+            if (intVal < 0x10) {
+                hexString.append('0');
+            }
+            hexString.append(HEX_CHARS[intVal >> 4]);
+            hexString.append(HEX_CHARS[intVal & 0x0f]);
+        }
+        return hexString.toString();
     }
 }
-
-
-

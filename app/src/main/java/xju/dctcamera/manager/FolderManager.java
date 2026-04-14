@@ -7,131 +7,172 @@ import java.io.File;
 
 /**
  * 目录管理器
- * <p/>
+ * <p>
+ * 管理应用相关的文件目录
+ * 优先使用应用专属目录（无需权限）
+ * </p>
+ *
  * Created by Clock on 2016/5/27.
  */
-public class FolderManager {
+public final class FolderManager {
 
     /**
-     * 应用程序在SD卡上的主目录名称
+     * 应用程序主目录名称
      */
-    private final static String APP_FOLDER_NAME = "xju.digitalwatermark";
-    /**
-     * 存放图片目录名
-     */
-    private final static String PHOTO_FOLDER_NAME = "photo";
+    private static final String APP_FOLDER_NAME = "xju.digitalwatermark";
 
     /**
-     * 存放DCT图片目录名
+     * 照片目录名称
      */
-    private final static String PHOTODCT_FOLDER_NAME = "DCTphoto";
-    /**
-     * 存放闪退日志目录名
-     */
-    private final static String CRASH_LOG_FOLDER_NAME = "crash";
+    private static final String PHOTO_FOLDER_NAME = "photo";
 
+    /**
+     * DCT 处理后照片目录名称
+     */
+    private static final String PHOTO_DCT_FOLDER_NAME = "DCTphoto";
+
+    /**
+     * 闪退日志目录名称
+     */
+    private static final String CRASH_LOG_FOLDER_NAME = "crash";
+
+    /**
+     * 单例实例
+     */
+    private static volatile FolderManager instance;
+
+    /**
+     * 应用上下文（用于获取外部存储目录）
+     */
+    private Context applicationContext;
 
     private FolderManager() {
     }
 
     /**
-     * 获取app在sd卡上的主目录
+     * 获取单例实例
      *
-     * @return 成功则返回目录，失败则返回null
+     * @return FolderManager 实例
      */
-    public static File getAppFolder() {
-        // 优先使用应用专属目录（不需要权限）
-        try {
-            Context context = xju.dctcamera.AtyContainer.getInstance().getCurrentActivity();
-            if (context != null) {
-                File appFolder = context.getExternalFilesDir(null);
-                if (appFolder != null) {
-                    return createOnNotFound(appFolder);
+    public static FolderManager getInstance() {
+        if (instance == null) {
+            synchronized (FolderManager.class) {
+                if (instance == null) {
+                    instance = new FolderManager();
                 }
             }
-        } catch (Exception e) {
-            // 忽略异常，使用备用方案
         }
-        
-        // 备用方案：使用公共存储目录
-        if (Environment.getExternalStorageState().equals(Environment.MEDIA_MOUNTED)) {
-            File appFolder = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), APP_FOLDER_NAME);
-            return createOnNotFound(appFolder);
-        } else {
-            return null;
+        return instance;
+    }
+
+    /**
+     * 初始化（应在 Application 或 MainActivity 中调用）
+     *
+     * @param context 应用上下文
+     */
+    public void initialize(Context context) {
+        if (context != null) {
+            this.applicationContext = context.getApplicationContext();
         }
     }
 
     /**
-     * 获取应用存放图片的目录
+     * 获取应用主目录
+     * <p>
+     * 优先使用应用专属目录（无需存储权限）
+     * </p>
      *
-     * @return 成功则返回目录名，失败则返回null
+     * @return 应用主目录，失败返回 null
      */
-    public static File getPhotoFolder() {
-        File appFolder = getAppFolder();
-        if (appFolder != null) {
-
-            File photoFolder = new File(appFolder, PHOTO_FOLDER_NAME);
-            return createOnNotFound(photoFolder);
-
-        } else {
-            return null;
+    public File getAppFolder() {
+        // 优先使用应用专属目录
+        if (applicationContext != null) {
+            File appFolder = applicationContext.getExternalFilesDir(null);
+            if (appFolder != null) {
+                return ensureDirectoryExists(appFolder);
+            }
         }
+
+        // 备用方案：使用公共图片目录
+        if (isExternalStorageAvailable()) {
+            File picturesDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES);
+            File appFolder = new File(picturesDir, APP_FOLDER_NAME);
+            return ensureDirectoryExists(appFolder);
+        }
+
+        return null;
     }
 
     /**
-     * 获取应用存放DCT图片的目录
+     * 获取照片存储目录
      *
-     * @return 成功则返回目录名，失败则返回null
+     * @return 照片目录，失败返回 null
      */
-    public static File getPhotoDCTFolder() {
-        File appFolder = getAppFolder();
-        if (appFolder != null) {
-
-            File photoFolder = new File(appFolder, PHOTODCT_FOLDER_NAME);
-            return createOnNotFound(photoFolder);
-
-        } else {
-            return null;
-        }
-    }
-
-
-    /**
-     * 获取闪退日志存放目录
-     *
-     * @return
-     */
-    public static File getCrashLogFolder() {
-        File appFolder = getAppFolder();
-        if (appFolder != null) {
-
-            File crashLogFolder = new File(appFolder, CRASH_LOG_FOLDER_NAME);
-            return createOnNotFound(crashLogFolder);
-        } else {
-            return null;
-        }
+    public File getPhotoFolder() {
+        return createSubDirectory(getAppFolder(), PHOTO_FOLDER_NAME);
     }
 
     /**
-     * 创建目录
+     * 获取 DCT 处理后照片存储目录
      *
-     * @param folder
-     * @return 创建成功则返回目录，失败则返回null
+     * @return DCT 照片目录，失败返回 null
      */
-    private static File createOnNotFound(File folder) {
+    public File getPhotoDctFolder() {
+        return createSubDirectory(getAppFolder(), PHOTO_DCT_FOLDER_NAME);
+    }
+
+    /**
+     * 获取闪退日志存储目录
+     *
+     * @return 日志目录，失败返回 null
+     */
+    public File getCrashLogFolder() {
+        return createSubDirectory(getAppFolder(), CRASH_LOG_FOLDER_NAME);
+    }
+
+    /**
+     * 在指定父目录下创建子目录
+     *
+     * @param parentDir   父目录
+     * @param subDirName  子目录名称
+     * @return 创建后的子目录 File 对象，失败返回 null
+     */
+    private File createSubDirectory(File parentDir, String subDirName) {
+        if (parentDir == null || subDirName == null || subDirName.isEmpty()) {
+            return null;
+        }
+
+        File subDir = new File(parentDir, subDirName);
+        return ensureDirectoryExists(subDir);
+    }
+
+    /**
+     * 确保目录存在，如果不存在则创建
+     *
+     * @param folder 目录路径
+     * @return 如果目录存在或创建成功则返回 File 对象，否则返回 null
+     */
+    private static File ensureDirectoryExists(File folder) {
         if (folder == null) {
             return null;
         }
 
         if (!folder.exists()) {
-            folder.mkdirs();
+            boolean created = folder.mkdirs();
+            if (!created && !folder.exists()) {
+                return null;
+            }
         }
 
-        if (folder.exists()) {
-            return folder;
-        } else {
-            return null;
-        }
+        return folder;
+    }
+
+    /**
+     * 检查外部存储是否可用
+     *
+     * @return 如果外部存储已挂载则返回 true
+     */
+    private boolean isExternalStorageAvailable() {
+        return Environment.getExternalStorageState().equals(Environment.MEDIA_MOUNTED);
     }
 }
