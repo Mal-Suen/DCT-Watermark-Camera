@@ -9,30 +9,22 @@ import android.net.wifi.WifiManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
-import android.support.annotation.NonNull;
-import android.support.v4.app.ActivityCompat;
-import android.support.v4.content.ContextCompat;
-import android.support.v7.app.AlertDialog;
-import android.support.v7.app.AppCompatActivity;
-import android.support.v7.widget.Toolbar;
-import android.telephony.TelephonyManager;
+import androidx.annotation.NonNull;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
+import androidx.appcompat.app.AlertDialog;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.Toolbar;
 import android.util.Log;
+import android.view.View;
 import android.widget.TextView;
 import android.widget.Toast;
-
-import com.nightonke.boommenu.BoomButtons.BoomButton;
-import com.nightonke.boommenu.BoomButtons.ButtonPlaceEnum;
-import com.nightonke.boommenu.BoomMenuButton;
-import com.nightonke.boommenu.ButtonEnum;
-import com.nightonke.boommenu.OnBoomListenerAdapter;
-import com.nightonke.boommenu.Piece.PiecePlaceEnum;
 
 import java.io.File;
 
 import xju.dctcamera.AtyContainer;
 import xju.dctcamera.R;
 import xju.dctcamera.helper.CapturePhotoHelper;
-import xju.dctcamera.manager.BuilderManager;
 import xju.dctcamera.manager.FolderManager;
 import xju.dctcamera.onekeyshare.OnekeyShare;
 import xju.dctcamera.utils.MD5Util;
@@ -43,7 +35,6 @@ public class MainActivity extends AppCompatActivity {
     private static final String EXTRA_RESTORE_PHOTO = "extra_restore_photo";
     private static final int PERMISSION_REQUEST_CODE = 0x1;
 
-    private BoomMenuButton bmb, bmb2;
     private CapturePhotoHelper mCapturePhotoHelper;
     private File mRestorePhotoFile;
 
@@ -55,14 +46,34 @@ public class MainActivity extends AppCompatActivity {
 
         initViews();
         displayDeviceInfo();
-        initBoomMenus();
+        setupClickListeners();
     }
 
     private void initViews() {
         Toolbar toolbar = findViewById(R.id.tool_bar);
         setSupportActionBar(toolbar);
-        bmb = findViewById(R.id.bmb);
-        bmb2 = findViewById(R.id.bmb2);
+    }
+
+    /**
+     * 设置所有按钮的点击事件
+     */
+    private void setupClickListeners() {
+        // 核心功能按钮
+        findViewById(R.id.card_camera).setOnClickListener(v -> checkCameraPermission());
+        findViewById(R.id.card_gallery).setOnClickListener(v -> {
+            startActivity(new Intent(this, ListViewActivity.class));
+        });
+        findViewById(R.id.card_settings).setOnClickListener(v -> {
+            startActivity(new Intent(this, SettingActivity.class));
+        });
+
+        // 菜单按钮
+        findViewById(R.id.btn_feedback).setOnClickListener(v -> sendFeedbackEmail());
+        findViewById(R.id.btn_help).setOnClickListener(v -> showHelpDialog());
+        findViewById(R.id.btn_share).setOnClickListener(v -> showShare());
+        findViewById(R.id.btn_exit).setOnClickListener(v -> {
+            AtyContainer.getInstance().finishAllActivity();
+        });
     }
 
     /**
@@ -70,83 +81,43 @@ public class MainActivity extends AppCompatActivity {
      */
     private void displayDeviceInfo() {
         try {
-            TelephonyManager tm = (TelephonyManager) getSystemService(Context.TELEPHONY_SERVICE);
-            // 润色：在高版本中 getDeviceId 可能抛出异常或返回空，需做简单兼容处理
-            String imei = (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) ? tm.getDeviceId() : "Unavailable";
+            TextView infoTv = findViewById(R.id.manualMain);
+            
+            // Android 10+ 无法获取 IMEI/电话号码，使用安全的替代方案
+            String androidId = android.provider.Settings.Secure.getString(
+                getContentResolver(), 
+                android.provider.Settings.Secure.ANDROID_ID
+            );
             
             WifiManager wm = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
-            String wlanMac = (wm != null && wm.getConnectionInfo() != null) ? wm.getConnectionInfo().getMacAddress() : "02:00:00:00:00:00";
+            String wlanMac = "Unavailable";
+            if (wm != null && wm.getConnectionInfo() != null) {
+                wlanMac = wm.getConnectionInfo().getMacAddress();
+                if (wlanMac == null || wlanMac.equals("02:00:00:00:00:00")) {
+                    wlanMac = "Unavailable (Android 6+)";
+                }
+            }
+
+            String deviceModel = Build.MODEL;
+            String sdkVersion = Build.VERSION.RELEASE;
             
-            String simSerial = (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) ? tm.getSimSerialNumber() : "Unavailable";
-            
-            String rawInfo = (imei == null ? "" : imei) + (wlanMac == null ? "" : wlanMac) + (simSerial == null ? "" : simSerial);
+            // 计算简单 MD5
+            String rawInfo = (androidId == null ? "" : androidId) + deviceModel + sdkVersion;
             String md5 = MD5Util.getMD5(rawInfo);
 
-            TextView infoTv = findViewById(R.id.manualMain);
-            String infoDisplay = String.format("IMEI:%s\nWLANMAC:%s\nSimSerial:%s\nMD5:%s\n", imei, wlanMac, simSerial, md5);
+            String infoDisplay = String.format(
+                "Android ID: %s\nDevice: %s\nSDK: %s\nWLAN MAC: %s\nMD5: %s", 
+                androidId != null ? androidId : "N/A",
+                deviceModel,
+                sdkVersion,
+                wlanMac,
+                md5
+            );
             infoTv.setText(infoDisplay);
-        } catch (SecurityException e) {
-            Log.e(TAG, "Permission denied for device info", e);
-        }
-    }
-
-    private void initBoomMenus() {
-        // 配置第一个 BMB (菜单功能)
-        bmb.setButtonEnum(ButtonEnum.Ham);
-        bmb.addBuilder(BuilderManager.getHamButtonBuilderWithDifferentPieceColor_Comment());
-        bmb.addBuilder(BuilderManager.getHamButtonBuilderWithDifferentPieceColor_Help());
-        bmb.addBuilder(BuilderManager.getHamButtonBuilderWithDifferentPieceColor_Share());
-        bmb.addBuilder(BuilderManager.getHamButtonBuilderWithDifferentPieceColor_Exit());
-
-        bmb.setOnBoomListener(new OnBoomListenerAdapter() {
-            @Override
-            public void onClicked(int index, BoomButton boomButton) {
-                handleBmbClick(index);
-            }
-        });
-
-        // 配置第二个 BMB (核心操作)
-        bmb2.setButtonEnum(ButtonEnum.TextOutsideCircle);
-        bmb2.setPiecePlaceEnum(PiecePlaceEnum.DOT_3_1);
-        bmb2.setButtonPlaceEnum(ButtonPlaceEnum.SC_3_1);
-        bmb2.addBuilder(BuilderManager.getTextOutsideCircleButtonBuilder_Gallery());
-        bmb2.addBuilder(BuilderManager.getTextOutsideCircleButtonBuilder_Camera());
-        bmb2.addBuilder(BuilderManager.getTextOutsideCircleButtonBuilder_Set());
-
-        bmb2.setOnBoomListener(new OnBoomListenerAdapter() {
-            @Override
-            public void onClicked(int index, BoomButton boomButton) {
-                handleBmb2Click(index);
-            }
-        });
-    }
-
-    private void handleBmbClick(int index) {
-        switch (index) {
-            case 0: // 反馈
-                sendFeedbackEmail();
-                break;
-            case 1: // 帮助 (此处原代码 index 1 和 3 都是退出，建议根据业务调整)
-            case 3: // 退出
-                AtyContainer.getInstance().finishAllActivity();
-                break;
-            case 2: // 分享
-                showShare();
-                break;
-        }
-    }
-
-    private void handleBmb2Click(int index) {
-        switch (index) {
-            case 0: // 相册
-                startActivity(new Intent(this, ListViewActivity.class));
-                break;
-            case 1: // 相机
-                checkCameraPermission();
-                break;
-            case 2: // 设置
-                startActivity(new Intent(this, SettingActivity.class));
-                break;
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to get device info", e);
+            TextView infoTv = findViewById(R.id.manualMain);
+            infoTv.setText("无法获取设备信息\n" + e.getMessage());
         }
     }
 
@@ -179,6 +150,7 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (requestCode == PERMISSION_REQUEST_CODE) {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 turnOnCamera();
@@ -235,6 +207,14 @@ public class MainActivity extends AppCompatActivity {
                 .show();
     }
 
+    private void showHelpDialog() {
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.help)
+                .setMessage(R.string.help_content)
+                .setPositiveButton(R.string.cancel, null)
+                .show();
+    }
+
     private void turnOnSettings() {
         Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
         intent.setData(Uri.parse("package:" + getPackageName()));
@@ -249,6 +229,6 @@ public class MainActivity extends AppCompatActivity {
         oks.setText("独乐乐不如众乐乐，发现了一个有趣的相机应用，快来下载吧～");
         oks.setSite(getString(R.string.app_name));
         oks.setSiteUrl("http://sharesdk.cn");
-        oks.show(this);
+        oks.show(MainActivity.this);
     }
 }

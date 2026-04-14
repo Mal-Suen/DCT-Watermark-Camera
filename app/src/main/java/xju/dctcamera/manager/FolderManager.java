@@ -1,5 +1,6 @@
 package xju.dctcamera.manager;
 
+import android.content.Context;
 import android.os.Environment;
 
 import java.io.File;
@@ -39,11 +40,23 @@ public class FolderManager {
      * @return 成功则返回目录，失败则返回null
      */
     public static File getAppFolder() {
+        // 优先使用应用专属目录（不需要权限）
+        try {
+            Context context = xju.dctcamera.AtyContainer.getInstance().getCurrentActivity();
+            if (context != null) {
+                File appFolder = context.getExternalFilesDir(null);
+                if (appFolder != null) {
+                    return createOnNotFound(appFolder);
+                }
+            }
+        } catch (Exception e) {
+            // 忽略异常，使用备用方案
+        }
+        
+        // 备用方案：使用公共存储目录
         if (Environment.getExternalStorageState().equals(Environment.MEDIA_MOUNTED)) {
-
-            File appFolder = new File(Environment.getExternalStorageDirectory(), APP_FOLDER_NAME);
+            File appFolder = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), APP_FOLDER_NAME);
             return createOnNotFound(appFolder);
-
         } else {
             return null;
         }

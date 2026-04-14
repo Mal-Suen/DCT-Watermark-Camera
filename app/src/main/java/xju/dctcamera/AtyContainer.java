@@ -30,6 +30,16 @@ public class AtyContainer {
     }
 
     /**
+     * 获取当前Activity（栈顶）
+     */
+    public Activity getCurrentActivity() {
+        if (activityStack.isEmpty()) {
+            return null;
+        }
+        return activityStack.get(activityStack.size() - 1);
+    }
+
+    /**
      * 结束所有Activity
      */
     public void finishAllActivity() {

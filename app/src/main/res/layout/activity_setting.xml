@@ -18,26 +18,24 @@
 
     </RadioGroup>
 
-    <com.dd.processbutton.FlatButton
+    <com.google.android.material.button.MaterialButton
         android:id="@+id/set_button"
         android:layout_width="100dp"
         android:layout_height="48dp"
         android:text="确定"
         android:textColor="@android:color/white"
-        custom:pb_colorNormal="@android:color/holo_blue_light"
-        custom:pb_colorPressed="@android:color/holo_blue_dark"
+        app:backgroundTint="@android:color/holo_blue_light"
         android:layout_marginTop="82dp"
         android:layout_below="@+id/customText"
         android:layout_alignStart="@+id/RadioButton5" />
 
-    <com.dd.processbutton.FlatButton
+    <com.google.android.material.button.MaterialButton
         android:id="@+id/back_button"
         android:layout_width="100dp"
         android:layout_height="48dp"
         android:text="@string/back"
         android:textColor="@android:color/white"
-        custom:pb_colorNormal="@android:color/holo_blue_light"
-        custom:pb_colorPressed="@android:color/holo_blue_dark"
+        app:backgroundTint="@android:color/holo_blue_light"
         android:layout_alignBaseline="@+id/set_button"
         android:layout_alignBottom="@+id/set_button"
         android:layout_alignEnd="@+id/customText" />

@@ -40,6 +40,7 @@
     <string name="navigation_drawer_close">navigation_drawer_close</string>
     <string name="camera_open_error">启动相机失败</string>
     <string name="photo_preview">展示照片</string>
+    <string name="dct_extract">提取水印</string>
     <string name="take_photo">TakePhoto</string>
     <string name="editText">请输入字符水印</string>
     <string name="not_specify_a_directory">未指定存储目录</string>

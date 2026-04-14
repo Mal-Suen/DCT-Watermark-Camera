@@ -7,15 +7,15 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.os.Bundle;
-import android.support.v7.app.AlertDialog;
-import android.support.v7.app.AppCompatActivity;
+import androidx.appcompat.app.AlertDialog;
+import androidx.appcompat.app.AppCompatActivity;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.Toast;
 
-import com.dd.processbutton.iml.SubmitProcessButton;
+// // import com.dd.processbutton.iml.SubmitProcessButton;
 
 import java.io.File;
 
@@ -68,7 +68,7 @@ public class PhotoPreviewActivity extends AppCompatActivity implements ProgressG
             m_PhotoPreview.setImageBitmap(bitmap);
         }
         final ProgressGenerator progressGenerator = new ProgressGenerator(this);
-        final SubmitProcessButton btn_add_dct = (SubmitProcessButton) findViewById(R.id.btn_add_DCT);
+        final Button btn_add_dct = (Button) findViewById(R.id.btn_add_DCT);
 
         btn_add_dct.setOnClickListener(new View.OnClickListener() {
             @Override
