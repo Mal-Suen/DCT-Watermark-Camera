@@ -19,6 +19,10 @@ release/
 .gradle/
 build/
 
+# Gradle distributions
+gradle-*/
+gradle-*-bin.zip
+
 # Local configuration file (sdk path, etc)
 local.properties
 
@@ -74,3 +78,6 @@ build/android-profile/
 # Temporary files
 *.tmp
 *.temp
+
+# Python scripts (用于重构的临时脚本)
+*.py
