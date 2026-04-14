@@ -40,83 +40,127 @@ import xju.dctcamera.utils.MD5Util;
  */
 public class MainActivity extends AppCompatActivity {
 
-    /**
-     * 日志标签
-     */
     private static final String TAG = "MainActivity";
-
-    /**
-     * 保存的照片文件键
-     */
     private static final String EXTRA_RESTORE_PHOTO = "extra_restore_photo";
 
     /**
      * 权限请求码
      */
-    private static final int PERMISSION_REQUEST_CODE = 0x1;
+    private static final int PERMISSION_REQUEST_CODE = 100;
 
     /**
-     * 反馈邮箱
+     * 所有必要权限已授予的标志
      */
+    private static final int ALL_PERMISSIONS_GRANTED = 0;
+
     private static final String FEEDBACK_EMAIL = "malcolmsuen@gmail.com";
-
-    /**
-     * 分享标题
-     */
     private static final String SHARE_TITLE = "天山印象";
-
-    /**
-     * 分享描述
-     */
     private static final String SHARE_TEXT = "独乐乐不如众乐乐，发现了一个有趣的相机应用，快来下载吧～";
-
-    /**
-     * 分享链接
-     */
     private static final String SHARE_URL = "http://sharesdk.cn";
 
-    /**
-     * 拍照帮助
-     */
     private CapturePhotoHelper capturePhotoHelper;
-
-    /**
-     * 恢复的照片文件
-     */
     private File restorePhotoFile;
+    private boolean isWaitingForPermissionResult = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        // 注册 Activity
         AtyContainer.getInstance().addActivity(this);
+        
+        // 初始化 FolderManager
+        FolderManager.getInstance().initialize(this);
 
-        // 初始化视图
         initToolbar();
         displayDeviceInfo();
         setupClickListeners();
+
+        // 启动时检查并请求权限
+        checkAndRequestPermissions();
     }
 
     /**
-     * 初始化 Toolbar
+     * 检查并请求必要的权限
      */
+    private void checkAndRequestPermissions() {
+        String[] requiredPermissions = getRequiredPermissions();
+        String[] missingPermissions = getMissingPermissions(requiredPermissions);
+
+        if (missingPermissions.length > 0) {
+            Log.d(TAG, "请求缺失的权限: " + missingPermissions.length + " 个");
+            ActivityCompat.requestPermissions(this, missingPermissions, PERMISSION_REQUEST_CODE);
+            isWaitingForPermissionResult = true;
+        } else {
+            Log.d(TAG, "所有必要权限已授予");
+            isWaitingForPermissionResult = false;
+        }
+    }
+
+    /**
+     * 根据系统版本获取需要请求的权限列表
+     */
+    private String[] getRequiredPermissions() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            // Android 13+ (API 33+)
+            return new String[]{
+                    Manifest.permission.CAMERA,
+                    Manifest.permission.READ_MEDIA_IMAGES
+            };
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            // Android 11-12 (API 30-32)
+            return new String[]{
+                    Manifest.permission.CAMERA,
+                    Manifest.permission.READ_EXTERNAL_STORAGE
+            };
+        } else {
+            // Android 10 及以下 (API <= 29)
+            return new String[]{
+                    Manifest.permission.CAMERA,
+                    Manifest.permission.WRITE_EXTERNAL_STORAGE,
+                    Manifest.permission.READ_EXTERNAL_STORAGE
+            };
+        }
+    }
+
+    /**
+     * 获取尚未授予的权限列表
+     */
+    private String[] getMissingPermissions(String[] requiredPermissions) {
+        java.util.List<String> missingList = new java.util.ArrayList<>();
+        for (String permission : requiredPermissions) {
+            if (ContextCompat.checkSelfPermission(this, permission)
+                    != PackageManager.PERMISSION_GRANTED) {
+                missingList.add(permission);
+            }
+        }
+        return missingList.toArray(new String[0]);
+    }
+
+    /**
+     * 检查是否拥有所有必要权限
+     */
+    private boolean hasAllPermissions() {
+        String[] requiredPermissions = getRequiredPermissions();
+        for (String permission : requiredPermissions) {
+            if (ContextCompat.checkSelfPermission(this, permission)
+                    != PackageManager.PERMISSION_GRANTED) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     private void initToolbar() {
         Toolbar toolbar = findViewById(R.id.tool_bar);
         setSupportActionBar(toolbar);
     }
 
-    /**
-     * 设置所有按钮的点击事件
-     */
     private void setupClickListeners() {
-        // 核心功能按钮
-        findViewById(R.id.card_camera).setOnClickListener(v -> checkCameraPermission());
+        findViewById(R.id.card_camera).setOnClickListener(v -> handleCameraClick());
         findViewById(R.id.card_gallery).setOnClickListener(v -> openPhotoList());
         findViewById(R.id.card_settings).setOnClickListener(v -> openSettings());
 
-        // 菜单按钮
         findViewById(R.id.btn_feedback).setOnClickListener(v -> sendFeedbackEmail());
         findViewById(R.id.btn_help).setOnClickListener(v -> showHelpDialog());
         findViewById(R.id.btn_share).setOnClickListener(v -> showShareDialog());
@@ -124,8 +168,16 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /**
-     * 显示设备信息
+     * 处理拍照按钮点击
      */
+    private void handleCameraClick() {
+        if (!hasAllPermissions()) {
+            showPermissionRequiredDialog();
+        } else {
+            startCamera();
+        }
+    }
+
     private void displayDeviceInfo() {
         try {
             String androidId = getAndroidId();
@@ -145,9 +197,6 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    /**
-     * 构建设备信息文本
-     */
     private String buildDeviceInfoText(String androidId, String deviceModel,
                                        String sdkVersion, String wlanMac, String md5) {
         return String.format(
@@ -160,18 +209,13 @@ public class MainActivity extends AppCompatActivity {
         );
     }
 
-    /**
-     * 获取 Android ID
-     */
     private String getAndroidId() {
         return Settings.Secure.getString(getContentResolver(), Settings.Secure.ANDROID_ID);
     }
 
-    /**
-     * 获取 WLAN MAC 地址
-     */
     private String getWlanMac() {
-        WifiManager wifiManager = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+        WifiManager wifiManager = (WifiManager) getApplicationContext()
+                .getSystemService(Context.WIFI_SERVICE);
         if (wifiManager != null && wifiManager.getConnectionInfo() != null) {
             String mac = wifiManager.getConnectionInfo().getMacAddress();
             if (mac != null && !mac.equals("02:00:00:00:00:00")) {
@@ -181,38 +225,23 @@ public class MainActivity extends AppCompatActivity {
         return "Unavailable (Android 6+)";
     }
 
-    /**
-     * 显示设备信息错误
-     */
     private void showDeviceInfoError(Exception e) {
         TextView infoTv = findViewById(R.id.manualMain);
         infoTv.setText("无法获取设备信息\n" + e.getMessage());
     }
 
-    /**
-     * 打开照片列表
-     */
     private void openPhotoList() {
         startActivity(new Intent(this, ListViewActivity.class));
     }
 
-    /**
-     * 打开设置
-     */
     private void openSettings() {
         startActivity(new Intent(this, SettingActivity.class));
     }
 
-    /**
-     * 退出应用
-     */
     private void exitApp() {
         AtyContainer.getInstance().finishAllActivity();
     }
 
-    /**
-     * 发送反馈邮件
-     */
     private void sendFeedbackEmail() {
         Intent intent = new Intent(Intent.ACTION_SENDTO);
         intent.setData(Uri.parse("mailto:" + FEEDBACK_EMAIL));
@@ -226,9 +255,6 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    /**
-     * 显示帮助对话框
-     */
     private void showHelpDialog() {
         new AlertDialog.Builder(this)
                 .setTitle(R.string.help)
@@ -237,9 +263,6 @@ public class MainActivity extends AppCompatActivity {
                 .show();
     }
 
-    /**
-     * 显示分享对话框
-     */
     private void showShareDialog() {
         OnekeyShare oks = new OnekeyShare();
         oks.disableSSOWhenAuthorize();
@@ -251,28 +274,12 @@ public class MainActivity extends AppCompatActivity {
         oks.show(this);
     }
 
-    /**
-     * 检查相机权限
-     */
-    private void checkCameraPermission() {
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE)
-                == PackageManager.PERMISSION_GRANTED) {
-            startCamera();
-        } else {
-            ActivityCompat.requestPermissions(
-                    this,
-                    new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE},
-                    PERMISSION_REQUEST_CODE
-            );
-        }
-    }
-
-    /**
-     * 启动相机
-     */
     private void startCamera() {
         if (capturePhotoHelper == null) {
-            capturePhotoHelper = new CapturePhotoHelper(this, FolderManager.getInstance().getPhotoFolder());
+            capturePhotoHelper = new CapturePhotoHelper(
+                    this, 
+                    FolderManager.getInstance().getPhotoFolder()
+            );
         }
         capturePhotoHelper.capture();
     }
@@ -281,29 +288,66 @@ public class MainActivity extends AppCompatActivity {
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions,
                                            @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        isWaitingForPermissionResult = false;
 
         if (requestCode == PERMISSION_REQUEST_CODE) {
-            if (grantResults.length > 0
-                    && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                startCamera();
+            int deniedCount = 0;
+            for (int i = 0; i < grantResults.length; i++) {
+                if (grantResults[i] != PackageManager.PERMISSION_GRANTED) {
+                    deniedCount++;
+                    Log.w(TAG, "权限被拒绝: " + permissions[i]);
+                }
+            }
+
+            if (deniedCount == 0) {
+                Log.d(TAG, "所有权限已授予");
+                Toast.makeText(this, "权限已授予，可以正常使用应用", Toast.LENGTH_SHORT).show();
             } else {
-                showMissingPermissionDialog();
+                Log.w(TAG, "有 " + deniedCount + " 个权限被拒绝");
+                showPermissionDeniedDialog();
             }
         }
     }
 
-    @Override
-    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        if (requestCode == CapturePhotoHelper.CAPTURE_PHOTO_REQUEST_CODE) {
-            handleCameraResult(resultCode);
-        } else {
-            super.onActivityResult(requestCode, resultCode, data);
-        }
+    /**
+     * 显示权限被拒绝的对话框
+     */
+    private void showPermissionDeniedDialog() {
+        new AlertDialog.Builder(this)
+                .setTitle("权限不足")
+                .setMessage("应用需要相机和存储权限才能正常工作。\n\n" +
+                        "• 相机权限：用于拍摄照片\n" +
+                        "• 存储权限：用于保存和读取照片\n\n" +
+                        "请前往设置授予必要的权限。")
+                .setNegativeButton("暂不授权", (dialog, which) -> {
+                    Toast.makeText(this, "部分功能可能无法正常使用", Toast.LENGTH_LONG).show();
+                })
+                .setPositiveButton("去设置", (dialog, which) -> openAppSettings())
+                .setCancelable(false)
+                .show();
     }
 
     /**
-     * 处理相机结果
+     * 显示需要权限的对话框
      */
+    private void showPermissionRequiredDialog() {
+        new AlertDialog.Builder(this)
+                .setTitle("需要权限")
+                .setMessage("拍照功能需要相机和存储权限，请先授予这些权限。")
+                .setNegativeButton("取消", null)
+                .setPositiveButton("授权", (dialog, which) -> checkAndRequestPermissions())
+                .show();
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        
+        if (requestCode == CapturePhotoHelper.CAPTURE_PHOTO_REQUEST_CODE) {
+            handleCameraResult(resultCode);
+        }
+    }
+
     private void handleCameraResult(int resultCode) {
         File photoFile = capturePhotoHelper != null ? capturePhotoHelper.getPhoto() : null;
         if (photoFile != null) {
@@ -311,7 +355,10 @@ public class MainActivity extends AppCompatActivity {
                 PhotoPreviewActivity.preview(this, photoFile);
                 finish();
             } else if (photoFile.exists()) {
-                photoFile.delete();
+                boolean deleted = photoFile.delete();
+                if (!deleted) {
+                    Log.w(TAG, "Failed to delete photo file");
+                }
             }
         }
     }
@@ -333,27 +380,22 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    /**
-     * 显示缺少权限的对话框
-     */
-    private void showMissingPermissionDialog() {
-        new AlertDialog.Builder(this)
-                .setTitle(R.string.help)
-                .setMessage(R.string.help_content)
-                .setNegativeButton(R.string.cancel, (dialog, which) -> {
-                    Toast.makeText(this, R.string.camera_open_error, Toast.LENGTH_LONG).show();
-                    finish();
-                })
-                .setPositiveButton(R.string.settings, (dialog, which) -> openAppSettings())
-                .show();
-    }
-
-    /**
-     * 打开应用设置
-     */
     private void openAppSettings() {
         Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
         intent.setData(Uri.parse("package:" + getPackageName()));
         startActivity(intent);
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        // 如果之前在等待权限结果，返回时重新检查权限状态
+        if (!isWaitingForPermissionResult) {
+            if (!hasAllPermissions()) {
+                Log.d(TAG, "onResume: 权限未授予");
+            } else {
+                Log.d(TAG, "onResume: 权限已授予");
+            }
+        }
     }
 }

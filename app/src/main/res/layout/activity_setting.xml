@@ -1,105 +1,158 @@
 <?xml version="1.0" encoding="utf-8"?>
-<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:custom="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
-    android:layout_width="fill_parent"
-    android:layout_height="fill_parent"
-    tools:context="xju.dctcamera.activity.MainActivity">
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true"
+    android:background="@android:color/white">
 
-    <RadioGroup
-        android:id="@+id/RadioGroup"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:layout_marginTop="141dp"
-        android:layout_alignParentTop="true"
-        android:layout_centerHorizontal="true">
-
-    </RadioGroup>
-
-    <com.google.android.material.button.MaterialButton
-        android:id="@+id/set_button"
-        android:layout_width="100dp"
-        android:layout_height="48dp"
-        android:text="确定"
-        android:textColor="@android:color/white"
-        app:backgroundTint="@android:color/holo_blue_light"
-        android:layout_marginTop="82dp"
-        android:layout_below="@+id/customText"
-        android:layout_alignStart="@+id/RadioButton5" />
-
-    <com.google.android.material.button.MaterialButton
-        android:id="@+id/back_button"
-        android:layout_width="100dp"
-        android:layout_height="48dp"
-        android:text="@string/back"
-        android:textColor="@android:color/white"
-        app:backgroundTint="@android:color/holo_blue_light"
-        android:layout_alignBaseline="@+id/set_button"
-        android:layout_alignBottom="@+id/set_button"
-        android:layout_alignEnd="@+id/customText" />
-
-    <EditText
-        android:id="@+id/customText"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:ems="10"
-        android:inputType="textPersonName"
-        android:layout_below="@+id/RadioButton4"
-        android:layout_alignEnd="@+id/RadioButton4"
-        android:layout_marginTop="10dp"
-        android:layout_toEndOf="@+id/RadioButton5" />
-
-    <RadioButton
-        android:id="@+id/RadioButton5"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:textAppearance="@style/TextAppearance.AppCompat.Button"
-        android:layout_alignBottom="@+id/customText"
-        android:layout_alignStart="@+id/RadioButton4" />
-
-    <RadioButton
-        android:id="@+id/RadioButton1"
-        android:layout_width="224dp"
-        android:layout_height="wrap_content"
-        android:text="国际移动设备身份码"
-        android:textAppearance="@style/TextAppearance.AppCompat.Button"
-        android:layout_marginBottom="18dp"
-        android:layout_above="@+id/RadioButton3"
-        android:layout_centerHorizontal="true" />
-
-    <RadioButton
-        android:id="@+id/RadioButton2"
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="48dp"
-        android:text="无线网卡硬件地址"
-        android:textAppearance="@style/TextAppearance.AppCompat.Button"
-        android:layout_below="@+id/RadioGroup"
-        android:layout_alignStart="@+id/RadioButton1"
-        android:layout_alignEnd="@+id/RadioButton1" />
+        android:orientation="vertical">
 
-    <RadioButton
-        android:id="@+id/RadioButton4"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="IMEI+MAC+SSN"
-        android:textAppearance="@style/TextAppearance.AppCompat.Button"
-        android:layout_below="@+id/RadioButton2"
-        android:layout_alignStart="@+id/RadioButton2"
-        android:layout_marginTop="18dp"
-        android:layout_alignEnd="@+id/RadioButton2" />
+        <!-- Toolbar -->
+        <androidx.appcompat.widget.Toolbar
+            android:id="@+id/toolbar"
+            android:layout_width="match_parent"
+            android:layout_height="?attr/actionBarSize"
+            android:background="?attr/colorPrimary"
+            android:elevation="4dp"
+            app:title="水印设置"
+            app:titleTextColor="@android:color/white" />
 
-    <RadioButton
-        android:id="@+id/RadioButton3"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Sim卡序列号"
-        android:textAppearance="@style/TextAppearance.AppCompat.Button"
-        android:layout_alignTop="@+id/RadioGroup"
-        android:layout_alignStart="@+id/RadioButton2"
-        android:layout_alignEnd="@+id/RadioButton2" />
+        <!-- 水印类型选择 -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="水印类型"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:textColor="@android:color/black"
+            android:layout_marginStart="16dp"
+            android:layout_marginTop="24dp"
+            android:layout_marginBottom="8dp" />
 
+        <!-- RadioGroup 卡片 -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_margin="8dp"
+            app:cardCornerRadius="12dp"
+            app:cardElevation="2dp">
 
-</RelativeLayout>
+            <RadioGroup
+                android:id="@+id/watermark_type_group"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:padding="16dp">
+
+                <RadioButton
+                    android:id="@+id/radio_imei"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="IMEI (设备唯一标识)"
+                    android:textSize="16sp"
+                    android:padding="8dp" />
+
+                <RadioButton
+                    android:id="@+id/radio_mac"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="MAC 地址 (网卡标识)"
+                    android:textSize="16sp"
+                    android:padding="8dp"
+                    android:layout_marginTop="8dp" />
+
+                <RadioButton
+                    android:id="@+id/radio_sim"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="SIM 序列号"
+                    android:textSize="16sp"
+                    android:padding="8dp"
+                    android:layout_marginTop="8dp" />
+
+                <RadioButton
+                    android:id="@+id/radio_all"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="全部信息 (IMEI + MAC + SIM)"
+                    android:textSize="16sp"
+                    android:padding="8dp"
+                    android:layout_marginTop="8dp" />
+
+                <RadioButton
+                    android:id="@+id/radio_custom"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="自定义水印"
+                    android:textSize="16sp"
+                    android:padding="8dp"
+                    android:layout_marginTop="8dp" />
+            </RadioGroup>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- 自定义水印输入 -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/custom_input_card"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_margin="8dp"
+            app:cardCornerRadius="12dp"
+            app:cardElevation="2dp"
+            android:visibility="gone">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="请输入自定义水印内容"
+                    android:textSize="14sp"
+                    android:textColor="@android:color/darker_gray" />
+
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/custom_watermark_input"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:hint="输入水印文本..."
+                    android:layout_marginTop="8dp"
+                    android:maxLines="3" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- 操作按钮 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:padding="16dp"
+            android:gravity="center">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/save_button"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginEnd="8dp"
+                android:text="保存设置"
+                app:cornerRadius="8dp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/back_button"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="8dp"
+                android:text="返回"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                app:cornerRadius="8dp" />
+        </LinearLayout>
+
+    </LinearLayout>
+</ScrollView>

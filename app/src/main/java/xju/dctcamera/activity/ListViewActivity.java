@@ -2,295 +2,381 @@ package xju.dctcamera.activity;
 
 import android.app.Activity;
 import android.content.Context;
-import android.content.DialogInterface;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.os.Bundle;
-import android.os.Environment;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.AdapterView;
-import android.widget.BaseAdapter;
-import android.widget.Button;
 import android.widget.ImageView;
-import android.widget.ListView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.Toolbar;
+import androidx.recyclerview.widget.GridLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
+
+import com.google.android.material.card.MaterialCardView;
 
 import java.io.File;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.Date;
 import java.util.List;
-import java.util.Map;
+import java.util.Locale;
 
 import xju.dctcamera.AtyContainer;
 import xju.dctcamera.R;
+import xju.dctcamera.manager.FolderManager;
 
 /**
  * 图片列表 Activity
  * <p>
- * 显示已拍摄图片的列表，支持查看水印、删除图片等操作。
+ * 显示已拍摄图片的网格列表，支持查看水印、删除图片等操作。
  * </p>
  *
  * @author Belikovvv
  * @since 2017/5/4
  */
-public class ListViewActivity extends Activity {
+public class ListViewActivity extends AppCompatActivity {
 
     private static final String TAG = "ListViewActivity";
 
-    /**
-     * 旧版图片目录路径
-     */
-    private static final String LEGACY_PHOTO_PATH = "/xju.digitalwatermark/DCTphoto";
-
-    /**
-     * 列表视图
-     */
-    private ListView listView;
-
-    /**
-     * 返回按钮
-     */
-    private Button backButton;
-
-    /**
-     * 所有文件列表
-     */
-    private File[] allFiles;
-
-    /**
-     * 图片目录
-     */
-    private File photoFolder;
-
-    /**
-     * 图片路径映射表（位置 -> 路径）
-     */
-    private Map<Integer, String> pathMap;
+    private RecyclerView photoRecyclerView;
+    private PhotoAdapter photoAdapter;
+    private List<PhotoItem> photoList;
+    private View emptyStateView;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.listview_main);
+
         AtyContainer.getInstance().addActivity(this);
 
-        initPhotoFolder();
         initViews();
-        setupListView();
-        setupBackButton();
+        setupRecyclerView();
+        loadPhotos();
     }
 
-    /**
-     * 初始化图片目录
-     */
-    private void initPhotoFolder() {
-        photoFolder = new File(Environment.getExternalStorageDirectory().getPath() + LEGACY_PHOTO_PATH);
-    }
-
-    /**
-     * 初始化视图
-     */
     private void initViews() {
-        setTitle("BaseAdapter for ListView");
-        listView = findViewById(R.id.MyListView);
-        backButton = findViewById(R.id.back_button);
-    }
+        Toolbar toolbar = findViewById(R.id.toolbar);
+        setSupportActionBar(toolbar);
+        if (getSupportActionBar() != null) {
+            getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+            toolbar.setNavigationOnClickListener(v -> finish());
+        }
 
-    /**
-     * 设置列表视图的点击事件
-     */
-    private void setupListView() {
-        listView.setOnItemClickListener((parent, view, position, id) -> showOperationDialog(position));
-    }
+        photoRecyclerView = findViewById(R.id.photo_recycler_view);
+        emptyStateView = findViewById(R.id.empty_state);
 
-    /**
-     * 设置返回按钮
-     */
-    private void setupBackButton() {
-        backButton.setOnClickListener(v -> {
+        findViewById(R.id.refresh_button).setOnClickListener(v -> loadPhotos());
+        findViewById(R.id.back_button).setOnClickListener(v -> {
             Intent intent = new Intent(ListViewActivity.this, MainActivity.class);
             startActivity(intent);
         });
     }
 
+    private void setupRecyclerView() {
+        photoList = new ArrayList<>();
+        photoAdapter = new PhotoAdapter(photoList);
+        photoRecyclerView.setLayoutManager(new GridLayoutManager(this, 2));
+        photoRecyclerView.setAdapter(photoAdapter);
+    }
+
     /**
-     * 显示操作 对话框
+     * 加载照片列表
      */
-    private void showOperationDialog(int position) {
-        if (pathMap == null || !pathMap.containsKey(position)) {
+    private void loadPhotos() {
+        photoList.clear();
+
+        // 使用 FolderManager 获取照片目录
+        File photoFolder = FolderManager.getInstance().getPhotoDctFolder();
+        if (photoFolder == null || !photoFolder.exists()) {
+            showEmptyState();
             return;
         }
 
-        String filePath = pathMap.get(position);
+        File[] files = photoFolder.listFiles();
+        if (files == null || files.length == 0) {
+            showEmptyState();
+            return;
+        }
 
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setIcon(R.drawable.manage);
-        builder.setTitle(R.string.warning);
-        builder.setMessage("请选择操作");
+        // 按修改时间倒序排列
+        java.util.Arrays.sort(files, (f1, f2) -> Long.compare(f2.lastModified(), f1.lastModified()));
 
-        builder.setPositiveButton("取水印", (dialog, which) -> extractWatermark(filePath));
-        builder.setNegativeButton("删除图片", (dialog, which) -> deleteImage(filePath));
-        builder.setNeutralButton("放弃操作", null);
-
-        builder.show();
-    }
-
-    /**
-     * 提取水印
-     */
-    private void extractWatermark(String filePath) {
-        Log.d(TAG, "Extracting watermark from: " + filePath);
-        Intent intent = new Intent(this, PhotoDedctActivity.class);
-        Bundle bundle = new Bundle();
-        bundle.putString("Path", filePath);
-        intent.putExtras(bundle);
-        startActivity(intent);
-    }
-
-    /**
-     * 删除图片
-     */
-    private void deleteImage(String filePath) {
-        try {
-            File file = new File(filePath);
-            if (file.exists()) {
-                boolean deleted = file.delete();
-                if (deleted) {
-                    showToast("删除成功");
-                    refreshListView();
-                } else {
-                    showToast("删除失败");
-                }
+        for (File file : files) {
+            if (file.isFile() && isImageFile(file.getName())) {
+                PhotoItem item = new PhotoItem(
+                        file.getAbsolutePath(),
+                        file.getName(),
+                        file.length(),
+                        file.lastModified()
+                );
+                photoList.add(item);
             }
-        } catch (Exception e) {
-            Log.e(TAG, "Failed to delete file: " + filePath, e);
-            showToast("删除失败");
+        }
+
+        if (photoList.isEmpty()) {
+            showEmptyState();
+        } else {
+            hideEmptyState();
+            photoAdapter.notifyDataSetChanged();
         }
     }
 
     /**
-     * 刷新列表
+     * 判断是否为图片文件
      */
-    private void refreshListView() {
-        pathMap = populateListView();
+    private boolean isImageFile(String fileName) {
+        String lowerCase = fileName.toLowerCase(Locale.getDefault());
+        return lowerCase.endsWith(".jpg") || lowerCase.endsWith(".jpeg") ||
+                lowerCase.endsWith(".png") || lowerCase.endsWith(".bmp");
+    }
+
+    private void showEmptyState() {
+        emptyStateView.setVisibility(View.VISIBLE);
+        photoRecyclerView.setVisibility(View.GONE);
+    }
+
+    private void hideEmptyState() {
+        emptyStateView.setVisibility(View.GONE);
+        photoRecyclerView.setVisibility(View.VISIBLE);
+    }
+
+    /**
+     * 照片数据类
+     */
+    private static class PhotoItem {
+        final String filePath;
+        final String fileName;
+        final long fileSize;
+        final long lastModified;
+
+        PhotoItem(String filePath, String fileName, long fileSize, long lastModified) {
+            this.filePath = filePath;
+            this.fileName = fileName;
+            this.fileSize = fileSize;
+            this.lastModified = lastModified;
+        }
+    }
+
+    /**
+     * RecyclerView 适配器
+     */
+    private class PhotoAdapter extends RecyclerView.Adapter<PhotoAdapter.PhotoViewHolder> {
+
+        private final List<PhotoItem> photos;
+
+        PhotoAdapter(List<PhotoItem> photos) {
+            this.photos = photos;
+        }
+
+        @NonNull
+        @Override
+        public PhotoViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+            View view = LayoutInflater.from(parent.getContext())
+                    .inflate(R.layout.item_photo, parent, false);
+            return new PhotoViewHolder(view);
+        }
+
+        @Override
+        public void onBindViewHolder(@NonNull PhotoViewHolder holder, int position) {
+            PhotoItem item = photos.get(position);
+            holder.bind(item);
+        }
+
+        @Override
+        public int getItemCount() {
+            return photos.size();
+        }
+
+        /**
+         * ViewHolder 类
+         */
+        class PhotoViewHolder extends RecyclerView.ViewHolder {
+            private final MaterialCardView cardView;
+            private final ImageView thumbnail;
+            private final TextView nameText;
+            private final TextView sizeText;
+            private final TextView dateText;
+            private final ImageView moreIcon;
+
+            PhotoViewHolder(@NonNull View itemView) {
+                super(itemView);
+                cardView = itemView.findViewById(R.id.card_view);
+                thumbnail = itemView.findViewById(R.id.photo_thumbnail);
+                nameText = itemView.findViewById(R.id.photo_name);
+                sizeText = itemView.findViewById(R.id.photo_size);
+                dateText = itemView.findViewById(R.id.photo_date);
+                moreIcon = itemView.findViewById(R.id.photo_more);
+            }
+
+            void bind(PhotoItem item) {
+                // 设置文件名
+                nameText.setText(item.fileName);
+
+                // 设置文件大小
+                sizeText.setText(formatFileSize(item.fileSize));
+
+                // 设置修改时间
+                dateText.setText(formatDate(item.lastModified));
+
+                // 加载缩略图（异步加载避免卡顿）
+                loadThumbnail(thumbnail, item.filePath);
+
+                // 设置点击事件
+                cardView.setOnClickListener(v -> {
+                    Intent intent = new Intent(ListViewActivity.this, PhotoDedctActivity.class);
+                    intent.putExtra("Path", item.filePath);
+                    startActivity(intent);
+                });
+
+                // 设置更多操作按钮
+                moreIcon.setOnClickListener(v -> showPhotoOptions(item));
+            }
+
+            /**
+             * 加载缩略图
+             */
+            private void loadThumbnail(ImageView imageView, String filePath) {
+                // 在后台线程加载图片以避免阻塞 UI
+                new Thread(() -> {
+                    try {
+                        // 计算缩放比例
+                        BitmapFactory.Options options = new BitmapFactory.Options();
+                        options.inJustDecodeBounds = true;
+                        BitmapFactory.decodeFile(filePath, options);
+
+                        options.inSampleSize = calculateInSampleSize(options, 200, 200);
+                        options.inJustDecodeBounds = false;
+
+                        Bitmap bitmap = BitmapFactory.decodeFile(filePath, options);
+                        if (bitmap != null) {
+                            runOnUiThread(() -> imageView.setImageBitmap(bitmap));
+                        } else {
+                            runOnUiThread(() -> imageView.setImageResource(android.R.drawable.ic_menu_gallery));
+                        }
+                    } catch (Exception e) {
+                        Log.e(TAG, "加载缩略图失败: " + filePath, e);
+                        runOnUiThread(() -> imageView.setImageResource(android.R.drawable.ic_menu_gallery));
+                    }
+                }).start();
+            }
+
+            /**
+             * 计算图片采样率
+             */
+            private int calculateInSampleSize(BitmapFactory.Options options, int reqWidth, int reqHeight) {
+                final int height = options.outHeight;
+                final int width = options.outWidth;
+                int inSampleSize = 1;
+
+                if (height > reqHeight || width > reqWidth) {
+                    final int halfHeight = height / 2;
+                    final int halfWidth = width / 2;
+
+                    while ((halfHeight / inSampleSize) >= reqHeight &&
+                            (halfWidth / inSampleSize) >= reqWidth) {
+                        inSampleSize *= 2;
+                    }
+                }
+
+                return inSampleSize;
+            }
+
+            /**
+             * 显示照片操作选项
+             */
+            private void showPhotoOptions(PhotoItem item) {
+                String[] options = {"提取水印", "删除照片", "取消"};
+
+                AlertDialog.Builder builder = new AlertDialog.Builder(ListViewActivity.this);
+                builder.setTitle("操作选项")
+                        .setItems(options, (dialog, which) -> {
+                            switch (which) {
+                                case 0: // 提取水印
+                                    extractWatermark(item.filePath);
+                                    break;
+                                case 1: // 删除照片
+                                    deletePhoto(item);
+                                    break;
+                                case 2: // 取消
+                                    dialog.dismiss();
+                                    break;
+                            }
+                        })
+                        .show();
+            }
+
+            /**
+             * 提取水印
+             */
+            private void extractWatermark(String filePath) {
+                Intent intent = new Intent(ListViewActivity.this, PhotoDedctActivity.class);
+                intent.putExtra("Path", filePath);
+                startActivity(intent);
+            }
+
+            /**
+             * 删除照片
+             */
+            private void deletePhoto(PhotoItem item) {
+                new AlertDialog.Builder(ListViewActivity.this)
+                        .setTitle("确认删除")
+                        .setMessage("确定要删除这张照片吗？此操作不可撤销。")
+                        .setPositiveButton("删除", (dialog, which) -> {
+                            File file = new File(item.filePath);
+                            if (file.exists() && file.delete()) {
+                                // 从列表中移除
+                                int position = photos.indexOf(item);
+                                if (position != -1) {
+                                    photos.remove(position);
+                                    notifyItemRemoved(position);
+                                    Toast.makeText(ListViewActivity.this, "照片已删除", Toast.LENGTH_SHORT).show();
+
+                                    // 检查是否为空
+                                    if (photos.isEmpty()) {
+                                        showEmptyState();
+                                    }
+                                }
+                            } else {
+                                Toast.makeText(ListViewActivity.this, "删除失败", Toast.LENGTH_SHORT).show();
+                            }
+                        })
+                        .setNegativeButton("取消", null)
+                        .show();
+            }
+        }
+    }
+
+    /**
+     * 格式化文件大小
+     */
+    private String formatFileSize(long size) {
+        if (size < 1024) return size + " B";
+        if (size < 1024 * 1024) return String.format("%.1f KB", size / 1024.0);
+        if (size < 1024 * 1024 * 1024) return String.format("%.1f MB", size / (1024.0 * 1024.0));
+        return String.format("%.1f GB", size / (1024.0 * 1024.0 * 1024.0));
+    }
+
+    /**
+     * 格式化日期
+     */
+    private String formatDate(long timestamp) {
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault());
+        return sdf.format(new Date(timestamp));
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        pathMap = populateListView();
-    }
-
-    /**
-     * 填充列表并返回路径映射
-     *
-     * @return 位置到文件路径的映射
-     */
-    private Map<Integer, String> populateListView() {
-        allFiles = photoFolder.listFiles();
-        if (allFiles == null || allFiles.length == 0) {
-            showToast("没有找到图片文件");
-            return new HashMap<>();
-        }
-
-        List<Bitmap> bitmapList = new ArrayList<>();
-        Map<Integer, String> pathMapping = new HashMap<>();
-
-        for (int i = 0; i < allFiles.length; i++) {
-            File file = allFiles[i];
-            Log.d(TAG, "Loading: " + file.getAbsolutePath());
-
-            Bitmap bitmap = BitmapFactory.decodeFile(file.getAbsolutePath());
-            if (bitmap != null) {
-                bitmapList.add(bitmap);
-            }
-            pathMapping.put(i, file.getAbsolutePath());
-        }
-
-        Bitmap[] bitmaps = bitmapList.toArray(new Bitmap[0]);
-        String[] titles = new String[bitmaps.length];
-        String[] texts = new String[bitmaps.length];
-
-        listView.setAdapter(new ListViewAdapter(titles, texts, bitmaps));
-        return pathMapping;
-    }
-
-    /**
-     * 显示 Toast 提示
-     */
-    private void showToast(String message) {
-        Toast.makeText(this, message, Toast.LENGTH_LONG).show();
-    }
-
-    /**
-     * 列表适配器
-     */
-    public class ListViewAdapter extends BaseAdapter {
-
-        private final View[] itemViews;
-
-        /**
-         * 构造函数
-         *
-         * @param itemTitles 标题数组
-         * @param itemTexts  文本数组
-         * @param bitmaps    图片数组
-         */
-        public ListViewAdapter(String[] itemTitles, String[] itemTexts, Bitmap[] bitmaps) {
-            itemViews = new View[bitmaps.length];
-            for (int i = 0; i < itemViews.length; i++) {
-                itemViews[i] = createItemView(itemTitles[i], itemTexts[i], bitmaps[i]);
-            }
-        }
-
-        @Override
-        public int getCount() {
-            return itemViews.length;
-        }
-
-        @Override
-        public View getItem(int position) {
-            return itemViews[position];
-        }
-
-        @Override
-        public long getItemId(int position) {
-            return position;
-        }
-
-        /**
-         * 创建单个列表项视图
-         */
-        private View createItemView(String title, String text, Bitmap bitmap) {
-            LayoutInflater inflater = (LayoutInflater) ListViewActivity.this
-                    .getSystemService(Context.LAYOUT_INFLATER_SERVICE);
-
-            View itemView = inflater.inflate(R.layout.listview_item, null);
-
-            TextView titleView = itemView.findViewById(R.id.itemTitle);
-            titleView.setText(title);
-
-            TextView textView = itemView.findViewById(R.id.itemText);
-            textView.setText(text);
-
-            ImageView imageView = itemView.findViewById(R.id.itemImage);
-            imageView.setImageBitmap(bitmap);
-
-            return itemView;
-        }
-
-        @Override
-        public View getView(int position, View convertView, ViewGroup parent) {
-            if (convertView == null) {
-                return itemViews[position];
-            }
-            return convertView;
-        }
+        loadPhotos(); // 每次返回时刷新列表
     }
 }
