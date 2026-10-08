@@ -33,8 +33,10 @@ class DwtAlgorithm implements WmAlgorithm {
     final blocksW = image.width ~/ 8;
     final blocksH = image.height ~/ 8;
     final capacityBits = blocksW * blocksH;
-    // 预留长度前缀 1 字节 + RS 校验 eccBytes 字节（修复差一错误：满容量不再截断校验位）
-    return ((capacityBits - 8 - eccBytes * 8) ~/ 8).clamp(0, 255).toInt();
+    // 预留：长度前缀 3 份（头部保护）+ RS 校验 eccBytes 字节
+    return ((capacityBits - _headerBits - eccBytes * 8) ~/ 8)
+        .clamp(0, 255)
+        .toInt();
   }
 
   @override
@@ -57,6 +59,12 @@ class DwtAlgorithm implements WmAlgorithm {
     int bi = 0;
     for (int by = 0; by < blocksH; by++) {
       for (int bx = 0; bx < blocksW; bx++) {
+        // S2 修复（2026-10-08 代码审查）：无水印 bit 的块直接跳过——
+        // Haar 往返含整除舍入噪声，白白拉低 PSNR；提取端只读码字跨度内的 bit。
+        if (bi >= bits.length) {
+          bi++;
+          continue;
+        }
         final py = by * 8;
         final px = bx * 8;
         // 读入 Y 通道
@@ -68,7 +76,7 @@ class DwtAlgorithm implements WmAlgorithm {
         }
         // 2D Haar 前向变换
         _haar2D(y, coeff);
-        if (bi < bits.length) {
+        {
           // 在 HL 子带（位置 (0,4)，即水平高频/垂直低频）做 QIM
           final target = coeff[0][4].toDouble();
           final k0 = (target / q).round();
@@ -172,6 +180,11 @@ class DwtAlgorithm implements WmAlgorithm {
   }
 
   // ============ RS 编码/解码 ============
+  /// 头部保护：长度前缀重复 3 份（解码端按位多数表决），抗单份损坏。
+  static const int _headerCopies = 3;
+  static const int _headerBits = 8 * _headerCopies;
+
+  /// 文本 -> RS 编码 -> bit 序列（MSB 先）：[长度前缀×3][RS 码字]，裁剪到容量。
   List<int> _encodeToBits(String text, int eccBytes, int capacityBits) {
     final utf8 = _asciiBytes(text);
     final dataBytes = utf8.length + 1;
@@ -186,6 +199,11 @@ class DwtAlgorithm implements WmAlgorithm {
     ReedSolomonEncoder(GenericGF.qrCodeField256).encode(toEncode, eccBytes);
 
     final bits = <int>[];
+    for (int copy = 0; copy < _headerCopies; copy++) {
+      for (int bit = 7; bit >= 0; bit--) {
+        bits.add((toEncode[0] >> bit) & 1);
+      }
+    }
     for (final b in toEncode) {
       for (int bit = 7; bit >= 0; bit--) {
         bits.add((b >> bit) & 1);
@@ -197,20 +215,27 @@ class DwtAlgorithm implements WmAlgorithm {
   String _decodeFromBits(List<int> bits, int eccBytes) {
     // 修复（2026-10-08 代码审查 C5/C7）：先读长度前缀，按精确码字长度 RS 解码，
     // 失败返回空串（fail-closed）。原实现整组解码被尾部随机 bit 破坏，纠错从未生效。
-    if (bits.length < 8) return '';
+    // 头部保护：三份长度前缀按位多数表决，消除长度字节单点故障。
+    if (bits.length < _headerBits) return '';
     int len = 0;
     for (int bit = 0; bit < 8; bit++) {
-      if (bits[bit] == 1) len |= (0x80 >> bit);
+      int votes = 0;
+      for (int copy = 0; copy < _headerCopies; copy++) {
+        if (bits[copy * 8 + bit] == 1) votes++;
+      }
+      if (votes * 2 > _headerCopies) len |= (0x80 >> bit);
     }
     final totalBytes = 1 + len + eccBytes;
-    if (len <= 0 || totalBytes > 255 || totalBytes * 8 > bits.length) {
+    if (len <= 0 ||
+        totalBytes > 255 ||
+        _headerBits + totalBytes * 8 > bits.length) {
       return '';
     }
     final bytes = <int>[];
     for (int i = 0; i < totalBytes; i++) {
       int byte = 0;
       for (int bit = 0; bit < 8; bit++) {
-        if (bits[i * 8 + bit] == 1) {
+        if (bits[_headerBits + i * 8 + bit] == 1) {
           byte |= (0x80 >> bit);
         }
       }

@@ -46,7 +46,10 @@ class DctQimColorAlgorithm implements WmAlgorithm {
   static List<List<int>> _makeBuffer() =>
       List.generate(8, (_) => List<int>.filled(8, 0));
 
-  DctQimColorAlgorithm({this.q = 8.0, this.eccBytes = 6}) {
+  /// 2026-10-08 实测调参：q=8 时 JPEG Q75 即丢水印（聊天工具标准压缩档）；
+  /// q=16 存活到 Q60，PSNR 54.4dB 仍远超 40dB 视觉无损线。取证照片经转发
+  /// （微信标准压缩≈Q60-75）后仍可验证，是本参数的核心诉求。
+  DctQimColorAlgorithm({this.q = 16.0, this.eccBytes = 6}) {
     // 预计算 (2,3) 权重矩阵：coef[2][3] = Σ_i Σ_j (input-128) * C[2][i] * C[3][j]
     _w23 = List.generate(8, (i) {
       return List.generate(8, (j) {
@@ -66,8 +69,10 @@ class DctQimColorAlgorithm implements WmAlgorithm {
     final blocksW = image.width ~/ 8;
     final blocksH = image.height ~/ 8;
     final capacityBits = blocksW * blocksH;
-    // 预留长度前缀 1 字节 + RS 校验 eccBytes 字节（修复差一错误：满容量不再截断校验位）
-    return ((capacityBits - 8 - eccBytes * 8) ~/ 8).clamp(0, 255).toInt();
+    // 预留：长度前缀 3 份（头部保护）+ RS 校验 eccBytes 字节
+    return ((capacityBits - _headerBits - eccBytes * 8) ~/ 8)
+        .clamp(0, 255)
+        .toInt();
   }
 
   @override
@@ -94,6 +99,13 @@ class DctQimColorAlgorithm implements WmAlgorithm {
     int bi = 0;
     for (int by = 0; by < blocksH; by++) {
       for (int bx = 0; bx < blocksW; bx++) {
+        // S2 修复（2026-10-08 代码审查）：无水印 bit 的块直接跳过——
+        // 原实现对全部块做 DCT 往返（含双舍入噪声），白白拉低 PSNR。
+        // 提取端只读码字跨度内的 bit，尾部块不参与解码，跳过无副作用。
+        if (bi >= bits.length) {
+          bi++;
+          continue;
+        }
         final py = by * 8;
         final px = bx * 8;
         // 读入块：取每个像素的 Y 亮度
@@ -105,7 +117,7 @@ class DctQimColorAlgorithm implements WmAlgorithm {
           }
         }
         _dct.forwardDCT(input8, coef);
-        if (bi < bits.length) {
+        {
           final target = coef[_coefRow][_coefCol].toDouble();
           // QIM: 最近格序号,再对齐到 奇/偶
           final k0 = (target / q).round();
@@ -167,7 +179,13 @@ class DctQimColorAlgorithm implements WmAlgorithm {
   }
 
   // ============ 工具 ============
-  /// 文本 -> RS 编码 -> bit 序列（MSB 先），裁剪到容量。
+  /// 头部保护：长度前缀重复 3 份（解码端按位多数表决），抗单份损坏。
+  /// 长度前缀是码字跨度的唯一入口，1 bit 翻转即整条提取失败——
+  /// RS 保护不了它（需要先知道长度才能圈定 RS 的作用域）。
+  static const int _headerCopies = 3;
+  static const int _headerBits = 8 * _headerCopies;
+
+  /// 文本 -> RS 编码 -> bit 序列（MSB 先）：[长度前缀×3][RS 码字]，裁剪到容量。
   List<int> _encodeToBits(String text, int eccBytes, int capacityBits) {
     final utf8 = _asciiBytes(text);
     final dataBytes = utf8.length + 1;
@@ -182,6 +200,11 @@ class DctQimColorAlgorithm implements WmAlgorithm {
     ReedSolomonEncoder(GenericGF.qrCodeField256).encode(toEncode, eccBytes);
 
     final bits = <int>[];
+    for (int copy = 0; copy < _headerCopies; copy++) {
+      for (int bit = 7; bit >= 0; bit--) {
+        bits.add((toEncode[0] >> bit) & 1);
+      }
+    }
     for (final b in toEncode) {
       for (int bit = 7; bit >= 0; bit--) {
         bits.add((b >> bit) & 1);
@@ -196,24 +219,32 @@ class DctQimColorAlgorithm implements WmAlgorithm {
   /// 解码，而码字只占前段——真实照片的尾部随机 bit 使 RS 必然失败（纠错从未
   /// 生效，靠长度前缀兜底返回乱码）。现改为：先读长度前缀，按精确码字长度
   /// （1+len+ecc 字节）RS 解码；失败即判定无水印（返回空串，fail-closed）。
+  /// 头部保护：长度前缀有 3 份副本，按位多数表决——单份损坏（含多 bit 错）
+  /// 不影响长度判定，消除"1 bit 翻转即整条提取失败"的单点故障。
   String _decodeFromBits(List<int> bits, int eccBytes) {
-    if (bits.length < 8) return '';
-    // 长度前缀（第一个字节）
+    if (bits.length < _headerBits) return '';
+    // 三份长度前缀按位多数表决
     int len = 0;
     for (int bit = 0; bit < 8; bit++) {
-      if (bits[bit] == 1) len |= (0x80 >> bit);
+      int votes = 0;
+      for (int copy = 0; copy < _headerCopies; copy++) {
+        if (bits[copy * 8 + bit] == 1) votes++;
+      }
+      if (votes * 2 > _headerCopies) len |= (0x80 >> bit);
     }
     // 码字总长 = 1(长度前缀) + len(数据) + eccBytes(校验)，受 RS 块上限 255 约束
     final totalBytes = 1 + len + eccBytes;
-    if (len <= 0 || totalBytes > 255 || totalBytes * 8 > bits.length) {
+    if (len <= 0 ||
+        totalBytes > 255 ||
+        _headerBits + totalBytes * 8 > bits.length) {
       return ''; // 长度非法或码字超出可用 bit → 无有效水印
     }
-    // 按精确码字长度取字节
+    // 按精确码字长度取字节（码字跟在头部之后）
     final bytes = <int>[];
     for (int i = 0; i < totalBytes; i++) {
       int byte = 0;
       for (int bit = 0; bit < 8; bit++) {
-        if (bits[i * 8 + bit] == 1) {
+        if (bits[_headerBits + i * 8 + bit] == 1) {
           byte |= (0x80 >> bit);
         }
       }

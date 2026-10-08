@@ -80,8 +80,10 @@ class SpreadSpectrumAlgorithm implements WmAlgorithm {
     final blocksW = image.width ~/ 8;
     final blocksH = image.height ~/ 8;
     final capacityBits = (blocksW * blocksH) ~/ spreadFactor;
-    // 预留长度前缀 1 字节 + RS 校验 eccBytes 字节（修复差一错误：满容量不再截断校验位）
-    return ((capacityBits - 8 - eccBytes * 8) ~/ 8).clamp(0, 255).toInt();
+    // 预留：长度前缀 3 份（头部保护）+ RS 校验 eccBytes 字节
+    return ((capacityBits - _headerBits - eccBytes * 8) ~/ 8)
+        .clamp(0, 255)
+        .toInt();
   }
 
   @override
@@ -105,25 +107,28 @@ class SpreadSpectrumAlgorithm implements WmAlgorithm {
     final back = _back;
     final dct = _dct;
 
-    // 第一次 forwardDCT：收集每个块的中频系数 + 保存完整系数矩阵（消除第二次 forwardDCT）
+    // S2 修复（2026-10-08 代码审查）：只有承载扩频信号的块（bits.length×sf 个）
+    // 需要 DCT 处理；尾部块跳过往返（提取端相关检测只读前段 bit，跳过无副作用）。
+    // bits.length ≤ capacityBits = 总块数/sf，故 signalBlocks ≤ 总块数。
+    final signalBlocks = bits.length * spreadFactor;
+
+    // 第一次 forwardDCT：收集承载块的系数 + 保存完整系数矩阵（消除第二次 forwardDCT）
     final midFreq = <int>[];
     final coefs = <List<List<int>>>[];
-    for (int by = 0; by < blocksH; by++) {
-      for (int bx = 0; bx < blocksW; bx++) {
-        final py = by * 8;
-        final px = bx * 8;
-        for (int i = 0; i < 8; i++) {
-          final row = (py + i) * width + px;
-          final rowIn = input8[i];
-          for (int j = 0; j < 8; j++) {
-            rowIn[j] = brightnessOf(pixels[row + j]);
-          }
+    for (int block = 0; block < signalBlocks; block++) {
+      final py = (block ~/ blocksW) * 8;
+      final px = (block % blocksW) * 8;
+      for (int i = 0; i < 8; i++) {
+        final row = (py + i) * width + px;
+        final rowIn = input8[i];
+        for (int j = 0; j < 8; j++) {
+          rowIn[j] = brightnessOf(pixels[row + j]);
         }
-        dct.forwardDCT(input8, coef);
-        midFreq.add(coef[_coefRow][_coefCol]);
-        // 深拷贝系数矩阵（保存，供回写用）
-        coefs.add(List.generate(8, (i) => List<int>.from(coef[i])));
       }
+      dct.forwardDCT(input8, coef);
+      midFreq.add(coef[_coefRow][_coefCol]);
+      // 深拷贝系数矩阵（保存，供回写用）
+      coefs.add(List.generate(8, (i) => List<int>.from(coef[i])));
     }
 
     // 扩频嵌入：每个 bit 用 spreadFactor 个系数
@@ -139,26 +144,22 @@ class SpreadSpectrumAlgorithm implements WmAlgorithm {
     }
 
     // 回写：从保存的系数矩阵改 (2,3)，再逆变换。只改 Y，保留 Co/Cg。
-    int mi = 0;
-    for (int by = 0; by < blocksH; by++) {
-      for (int bx = 0; bx < blocksW; bx++) {
-        final py = by * 8;
-        final px = bx * 8;
-        final saved = coefs[mi];
-        if (mi < midFreq.length) {
-          saved[_coefRow][_coefCol] = midFreq[mi];
-        }
-        mi++;
-        dct.inverseDCT(saved, back);
-        for (int i = 0; i < 8; i++) {
-          final row = (py + i) * width + px;
-          final backRow = back[i];
-          for (int j = 0; j < 8; j++) {
-            final newY = backRow[j].clamp(0, 255);
-            final old = pixels[row + j];
-            final c = rgbToYCoCg(old);
-            pixels[row + j] = yCoCgToRgb(YCoCg(newY, c.co, c.cg));
-          }
+    for (int mi = 0; mi < signalBlocks; mi++) {
+      final py = (mi ~/ blocksW) * 8;
+      final px = (mi % blocksW) * 8;
+      final saved = coefs[mi];
+      if (mi < midFreq.length) {
+        saved[_coefRow][_coefCol] = midFreq[mi];
+      }
+      dct.inverseDCT(saved, back);
+      for (int i = 0; i < 8; i++) {
+        final row = (py + i) * width + px;
+        final backRow = back[i];
+        for (int j = 0; j < 8; j++) {
+          final newY = backRow[j].clamp(0, 255);
+          final old = pixels[row + j];
+          final c = rgbToYCoCg(old);
+          pixels[row + j] = yCoCgToRgb(YCoCg(newY, c.co, c.cg));
         }
       }
     }
@@ -241,7 +242,13 @@ class SpreadSpectrumAlgorithm implements WmAlgorithm {
     }
     ReedSolomonEncoder(GenericGF.qrCodeField256).encode(toEncode, eccBytes);
 
+    // 头部保护：长度前缀重复 3 份（解码端按位多数表决），抗单份损坏
     final bits = <int>[];
+    for (int copy = 0; copy < _headerCopies; copy++) {
+      for (int bit = 7; bit >= 0; bit--) {
+        bits.add((toEncode[0] >> bit) & 1);
+      }
+    }
     for (final b in toEncode) {
       for (int bit = 7; bit >= 0; bit--) {
         bits.add((b >> bit) & 1);
@@ -250,23 +257,34 @@ class SpreadSpectrumAlgorithm implements WmAlgorithm {
     return bits.take(capacityBits).toList();
   }
 
+  /// 头部保护常量：长度前缀 3 份副本。
+  static const int _headerCopies = 3;
+  static const int _headerBits = 8 * _headerCopies;
+
   String _decodeFromBits(List<int> bits, int eccBytes) {
     // 修复（2026-10-08 代码审查 C5/C7）：先读长度前缀，按精确码字长度 RS 解码，
     // 失败返回空串（fail-closed）。原实现整组解码被尾部随机 bit 破坏，纠错从未生效。
-    if (bits.length < 8) return '';
+    // 头部保护：三份长度前缀按位多数表决，消除长度字节单点故障。
+    if (bits.length < _headerBits) return '';
     int len = 0;
     for (int bit = 0; bit < 8; bit++) {
-      if (bits[bit] == 1) len |= (0x80 >> bit);
+      int votes = 0;
+      for (int copy = 0; copy < _headerCopies; copy++) {
+        if (bits[copy * 8 + bit] == 1) votes++;
+      }
+      if (votes * 2 > _headerCopies) len |= (0x80 >> bit);
     }
     final totalBytes = 1 + len + eccBytes;
-    if (len <= 0 || totalBytes > 255 || totalBytes * 8 > bits.length) {
+    if (len <= 0 ||
+        totalBytes > 255 ||
+        _headerBits + totalBytes * 8 > bits.length) {
       return '';
     }
     final bytes = <int>[];
     for (int i = 0; i < totalBytes; i++) {
       int byte = 0;
       for (int bit = 0; bit < 8; bit++) {
-        if (bits[i * 8 + bit] == 1) {
+        if (bits[_headerBits + i * 8 + bit] == 1) {
           byte |= (0x80 >> bit);
         }
       }

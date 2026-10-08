@@ -1,6 +1,7 @@
 // watermark_flow_test.dart — 端到端：WmBitmap 构造 -> 嵌入 -> 提取。
 // 验证 App 使用的核心库完整链路（不依赖 GPU 光栅化，可在 headless 跑）。
 import 'package:flutter_test/flutter_test.dart';
+import 'package:image/image.dart' as img;
 import 'package:dct_watermark_app/algorithm/algorithm.dart';
 
 WmBitmap smoothImage(int w, int h) {
@@ -49,5 +50,37 @@ void main() {
     for (final a in defaultAlgorithms()) {
       expect(a.extract(img), isEmpty, reason: a.id);
     }
+  });
+
+  // JPEG 鲁棒性回归（2026-10-08 调参验收）：默认算法（QIM q=16）在聊天工具
+  // 标准压缩档（JPEG Q75）后仍可完整提取——取证照片经转发后仍可验证。
+  // q=8 时 Q75 即丢水印（bin/diag_jpeg.dart 实测），此测试钉住调参成果。
+  testWidgets('默认算法 JPEG Q75 压缩后仍可提取', (WidgetTester tester) async {
+    final wm = smoothImage(640, 480);
+    const msg = 'e2e flow ok 42';
+    final algo = defaultAlgorithms().first; // QIM-DCT 保色（q=16）
+    final embedded = algo.embed(wm, msg);
+    // WmBitmap -> image 包 -> JPEG Q75 -> 解码 -> WmBitmap
+    final img0 = img.Image(width: embedded.width, height: embedded.height);
+    for (int y = 0; y < embedded.height; y++) {
+      for (int x = 0; x < embedded.width; x++) {
+        final p = embedded.getPixel(x, y);
+        img0.setPixelRgba(x, y, (p >> 16) & 0xFF, (p >> 8) & 0xFF, p & 0xFF, 255);
+      }
+    }
+    final jpg = img.encodeJpg(img0, quality: 75);
+    final decoded = img.decodeJpg(jpg)!;
+    final px = List<int>.filled(decoded.width * decoded.height, 0);
+    for (int y = 0; y < decoded.height; y++) {
+      for (int x = 0; x < decoded.width; x++) {
+        final p = decoded.getPixel(x, y);
+        px[y * decoded.width + x] = 0xFF000000 |
+            (p.r.toInt() << 16) |
+            (p.g.toInt() << 8) |
+            p.b.toInt();
+      }
+    }
+    final wm2 = WmBitmap(decoded.width, decoded.height, px);
+    expect(algo.extract(wm2), equals(msg));
   });
 }
