@@ -120,7 +120,7 @@ DCT-Watermark-Camera/
 | **DWT 域** | 抗噪最强（noise≤10），速度最快 |
 | **扩频** | 鲁棒性最强（noise≤15），容量较小 |
 
-### 工作原理与诚实声明
+### 工作原理
 
 - **水印承载在频域系数**（8×8 DCT 块 / Haar 子带）。它能完好通过本 App 自身的无损 PNG 往返——这正是 App 存 PNG 的原因。第三方重压缩（JPEG 再编码、聊天工具传输）可能损坏水印。
 - **设备标识**：Android 用 `Settings.Secure.ANDROID_ID`（恢复出厂前恒定；Android 8+ 按应用隔离），iOS 用 `identifierForVendor`（卸载重装会变）。它标识的是设备，不是人。
