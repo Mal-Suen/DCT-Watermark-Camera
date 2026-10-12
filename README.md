@@ -2,9 +2,9 @@
 
 <div align="center">
 
-**A forensic watermark camera — the moment you press the shutter, time, place and device are written into the photo itself**
+**Forensic watermark camera — 3 visually-lossless algorithms (QIM-DCT/DWT/spread spectrum), zero color loss, RS error correction, survives JPEG re-sharing**
 
-**DCT 取证水印相机：按下快门的那一刻，时间、地点、设备已被写入照片本身**
+**取证水印相机：QIM-DCT/DWT/扩频三种视觉无损水印算法，色彩零损失，Reed-Solomon 纠错，JPEG 转发后仍可提取**
 
 [![Flutter](https://img.shields.io/badge/Flutter-3.29+-02569B.svg)](https://flutter.dev)
 [![Dart](https://img.shields.io/badge/Dart-3.7+-0175C2.svg)](https://dart.dev)
