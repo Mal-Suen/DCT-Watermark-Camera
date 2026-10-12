@@ -1,8 +1,9 @@
-// main.dart — DCT 数字水印相机（Flutter 跨平台版）· 界面 v2
+// main.dart — DCT 取证水印相机（Flutter 跨平台版）· 界面 v3
 //
-// 双 Tab：📷 取证拍照(嵌入) / 🔍 验水印(提取)
-//  - 取证拍照：相机实时取景 → 快门自动采集(时间+经纬度+设备ID)组装水印 → 嵌入 → 存相册
-//  - 提取：可打开任意图片 → 算法解析 → 显示水印内容（结构化字段）
+// 常规相机布局：全屏取景 + 悬浮功能键
+//  - 打开即全屏相机取景；快门 = 拍摄并自动嵌入取证水印（时间+经纬度+设备ID）→ 存相册
+//  - 右上功能键：验水印（底部面板：相册选图 → 提取 → 结构化展示）
+//  - 左上功能键：水印设置（底部面板：算法切换）
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
@@ -21,7 +22,7 @@ import 'image_codec.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // 预取相机列表（供取证拍照 Tab 使用）；失败时传空，UI 显示"相机不可用"
+  // 预取相机列表；失败时传空，UI 显示"相机不可用"
   List<CameraDescription> cameras = const [];
   try {
     cameras = await availableCameras();
@@ -30,15 +31,42 @@ void main() async {
 }
 
 // ---- 后台 isolate 计算函数（避免阻塞 UI 主线程）----
-// 根据算法 id 从注册表选中对应实现，分派嵌入/提取。后续新增算法自动生效。
-WmBitmap _embedInBackground(List<Object?> args) {
-  final algo = _selectAlgorithm(args[2] as String);
-  return algo.embed(args[0] as WmBitmap, args[1] as String);
+
+// 拍摄管线（后台）：RGBA→ARGB 转换 + 嵌入水印 + ARGB→RGBA 转换。
+// 修复（2026-10-08 实测卡死）：这两段 2M 像素级的纯 Dart 循环原先跑在主
+// isolate，debug 模式模拟器上冻结 UI 数秒。边界只传 Uint8List（typed data
+// 跨 isolate 为快速拷贝；WmBitmap 的 List<int> 装箱数组拷贝很慢）。
+Uint8List _capturePipelineInBackground(List<Object?> args) {
+  final rgba = args[0] as Uint8List;
+  final width = args[1] as int;
+  final height = args[2] as int;
+  final watermark = args[3] as String;
+  final algo = _selectAlgorithm(args[4] as String);
+
+  // RGBA 字节 → WmBitmap（ARGB int）
+  final n = width * height;
+  final pixels = List<int>.filled(n, 0);
+  for (int i = 0; i < n; i++) {
+    pixels[i] =
+        0xFF000000 | (rgba[i * 4] << 16) | (rgba[i * 4 + 1] << 8) | rgba[i * 4 + 2];
+  }
+  final wm = WmBitmap(width, height, pixels);
+  final result = algo.embed(wm, watermark);
+
+  // WmBitmap（ARGB int）→ RGBA 字节
+  final out = Uint8List(n * 4);
+  for (int i = 0; i < n; i++) {
+    final argb = result.pixelAt(i);
+    out[i * 4] = (argb >> 16) & 0xFF;
+    out[i * 4 + 1] = (argb >> 8) & 0xFF;
+    out[i * 4 + 2] = argb & 0xFF;
+    out[i * 4 + 3] = 0xFF;
+  }
+  return out;
 }
 
 // 修复（2026-10-08 代码审查 C3）：遍历全部注册算法提取（每个约 40ms），
-// 优先返回可解析为取证格式的结果——不再依赖拍照 Tab 的算法下拉选择
-// （原实现用当前选中算法提取，切错算法会把有效水印误报为"无水印"）。
+// 优先返回可解析为取证格式的结果——不再依赖用户记住嵌入时选的算法。
 // RS fail-closed（C5/C7 修复）保证错误算法对含水印图也返回空串。
 String _extractInBackground(List<Object?> args) {
   final src = args[0] as WmBitmap;
@@ -72,7 +100,7 @@ class DctWatermarkApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'DCT 数字水印相机',
+      title: 'DCT 取证水印相机',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF00897B)),
         useMaterial3: true,
@@ -92,23 +120,14 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  // ---- 取证拍照模式状态 ----
-  CameraController? _camera; // 相机控制器
-  bool _cameraReady = false; // 相机是否初始化成功
-  ui.Image? _editPreview; // 拍摄/嵌入后预览
-  WmBitmap? _editResult; // 嵌入后的水印图
+  // ---- 相机状态 ----
+  CameraController? _camera;
+  bool _cameraReady = false;
   String _editStatus = '正在启动相机…';
-
-  // ---- 提取模式状态 ----
-  ui.Image? _inspectImage; // 待验图片预览
-  WmBitmap? _inspectWm;
-  String _inspectStatus = '选择一张带水印的图片进行验证';
-  String? _extractedText;
-
-  // ---- 共享 ----
   bool _busy = false;
+  ui.Image? _lastThumb; // 最近一次拍摄的缩略图（底部相册入口，iPhone 相机风格）
 
-  // 当前水印算法（默认保色 QIM-DCT；可在 UI 下拉切换）
+  // 当前水印算法（默认保色 QIM-DCT；可在设置面板切换）
   WmAlgorithm _algorithm = DctQimColorAlgorithm();
 
   @override
@@ -168,7 +187,396 @@ class _HomeScreenState extends State<HomeScreen> {
     return 'unknown-device';
   }
 
-  // ---- 提取：从相册选图 ----
+  // ---- 取证快门：拍摄 → 采集证据 → 嵌入水印 → 存相册 ----
+  // 主 isolate 只做原生异步调用（解码/GPU 读回/PNG 编码/相册写入），
+  // 全部像素级纯 Dart 循环都在 compute isolate（见 _capturePipelineInBackground）。
+  Future<void> _captureAndWatermark() async {
+    final camera = _camera;
+    if (camera == null || !camera.value.isInitialized) {
+      _toast('相机未就绪');
+      return;
+    }
+    setState(() {
+      _busy = true;
+      _editStatus = '正在拍摄…';
+    });
+    try {
+      // 1. 拍摄并解码（原生）
+      final xfile = await camera.takePicture();
+      final bytes = await xfile.readAsBytes();
+      final image = await decodeImage(bytes);
+      final rgba = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
+      if (rgba == null) {
+        throw StateError('Failed to read image pixels');
+      }
+      final width = image.width;
+      final height = image.height;
+      image.dispose(); // 修复（C6）：临时解码用完即释放
+
+      // 2. 采集取证证据（时间 + 经纬度 + 设备ID）
+      final deviceId = await _deviceId();
+      final pos = await _currentPosition();
+      final evidence = Evidence(
+        capturedAt: DateTime.now(),
+        latitude: pos?.latitude,
+        longitude: pos?.longitude,
+        deviceId: deviceId,
+        algorithmId: _algorithm.id,
+      );
+      // 容量上限按当前算法 + 拍摄尺寸计算（maxTextLength 只读宽高，空像素即可）
+      final maxLen = _algorithm
+          .maxTextLength(WmBitmap(width, height, const <int>[]));
+      final watermark = evidence.toWatermarkString(maxLen: maxLen);
+
+      // 3. 后台管线：转换 + 嵌入 + 转换（typed data 跨 isolate 快速拷贝）
+      setState(() => _editStatus = '正在嵌入取证水印…');
+      final outRgba = await compute(_capturePipelineInBackground, [
+        rgba.buffer.asUint8List(rgba.offsetInBytes, rgba.lengthInBytes),
+        width,
+        height,
+        watermark,
+        _algorithm.id,
+      ]);
+
+      // 4. PNG 编码（引擎原生）→ 保存到系统相册（无损，保证事后可精确提取）
+      final png = await rawRgbaToPng(outRgba, width, height);
+      await Gal.putImageBytes(png);
+
+      // 5. 更新底部相册入口缩略图（下采样小图，~30KB 原生内存）
+      final oldThumb = _lastThumb;
+      final newThumb = await makeThumbnail(outRgba, width, height);
+
+      if (!mounted) {
+        newThumb.dispose();
+        return;
+      }
+      setState(() {
+        _busy = false;
+        _lastThumb = newThumb;
+        _editStatus = '取证水印已嵌入并保存到相册';
+      });
+      if (oldThumb != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) => oldThumb.dispose());
+      }
+      _toast('已保存：$watermark');
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _busy = false;
+        _editStatus = '取证失败：$e';
+      });
+    }
+  }
+
+  // ---- 获取当前经纬度（失败返回 null）----
+  Future<Position?> _currentPosition() async {
+    try {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) return null;
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        return null;
+      }
+      return await Geolocator.getCurrentPosition();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  void _toast(String msg) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    }
+  }
+
+  // ================= UI：iPhone 相机风格布局 =================
+  // 顶部纯取景（无控件）；底部独立控制条：相册缩略图(左) + 快门(中) + 设置(右)。
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Stack(
+        children: [
+          Column(
+            children: [
+              // 取景区：占满控制条以上的全部空间
+              Expanded(child: _buildViewfinder()),
+              // 底部控制条（iPhone 相机风格）
+              SafeArea(
+                top: false,
+                child: _buildBottomBar(),
+              ),
+            ],
+          ),
+          // 处理中遮罩（阻断误触；Positioned.fill 保证铺满）
+          if (_busy) const Positioned.fill(child: ColoredBox(color: Colors.black26)),
+        ],
+      ),
+    );
+  }
+
+  // ---- 取景区：contain 完整视野，上对齐（黑边汇入底部控制区，iPhone 布局）----
+  Widget _buildViewfinder() {
+    final camera = _camera;
+    if (camera != null && camera.value.isInitialized && _cameraReady) {
+      // CameraValue.aspectRatio 是传感器方向的宽高比（横值）；CameraPreview
+      // 内部在竖屏下按 1/aspectRatio 渲染并旋转画面。外层必须用同一纵向比。
+      final isPortrait =
+          MediaQuery.of(context).orientation == Orientation.portrait;
+      final previewAspect = isPortrait
+          ? 1 / camera.value.aspectRatio
+          : camera.value.aspectRatio;
+      return Align(
+        alignment: Alignment.topCenter,
+        child: AspectRatio(
+          aspectRatio: previewAspect,
+          child: CameraPreview(camera),
+        ),
+      );
+    }
+    return ColoredBox(
+      color: Colors.black,
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.photo_camera_outlined,
+                size: 64, color: Colors.white38),
+            const SizedBox(height: 12),
+            const Text('相机不可用',
+                style: TextStyle(color: Colors.white54, fontSize: 16)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ---- 底部控制条：相册缩略图(左) + 快门(中) + 设置(右) ----
+  Widget _buildBottomBar() {
+    return Container(
+      color: Colors.black,
+      padding: const EdgeInsets.fromLTRB(24, 6, 24, 14),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // 状态行（小字居中）
+          SizedBox(
+            height: 18,
+            child: Center(
+              child: Text(
+                _editStatus,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(color: Colors.white54, fontSize: 12),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              // 左：相册/验水印入口（拍摄后显示实拍缩略图）
+              _thumbButton(),
+              // 中：快门
+              _buildShutter(),
+              // 右：水印设置
+              _barButton(
+                icon: Icons.tune,
+                onTap: _busy ? null : _showSettingsSheet,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ---- 相册入口：有实拍缩略图显示缩略图，否则显示占位图标 ----
+  Widget _thumbButton() {
+    final thumb = _lastThumb;
+    return SizedBox(
+      width: 56,
+      height: 56,
+      child: Material(
+        color: Colors.white12,
+        borderRadius: BorderRadius.circular(10),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(10),
+          onTap: _showVerifySheet,
+          child: thumb != null
+              ? ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: RawImage(image: thumb, fit: BoxFit.cover),
+                )
+              : const Icon(Icons.photo_library, color: Colors.white70, size: 26),
+        ),
+      ),
+    );
+  }
+
+  // ---- 底部条圆形功能键 ----
+  Widget _barButton({
+    required IconData icon,
+    VoidCallback? onTap,
+  }) {
+    return SizedBox(
+      width: 56,
+      height: 56,
+      child: Material(
+        color: Colors.white12,
+        borderRadius: BorderRadius.circular(28),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(28),
+          onTap: onTap,
+          child: Icon(icon, color: Colors.white, size: 26),
+        ),
+      ),
+    );
+  }
+
+  // ---- 经典相机快门：外环 + 内芯，处理中显示进度 ----
+  Widget _buildShutter() {
+    final enabled = _cameraReady && !_busy;
+    return GestureDetector(
+      key: const ValueKey('shutter'),
+      onTap: enabled ? _captureAndWatermark : null,
+      child: Container(
+        width: 74,
+        height: 74,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(color: Colors.white, width: 4),
+        ),
+        alignment: Alignment.center,
+        child: _busy
+            ? const SizedBox(
+                width: 52,
+                height: 52,
+                child: CircularProgressIndicator(
+                    color: Colors.white, strokeWidth: 3),
+              )
+            : Container(
+                width: 58,
+                height: 58,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: enabled ? Colors.white : Colors.white38,
+                ),
+              ),
+      ),
+    );
+  }
+
+  // ---- 水印设置面板（算法切换）----
+  Future<void> _showSettingsSheet() {
+    WmAlgorithm selected = _algorithm;
+    return showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheet) => SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text('水印设置',
+                    style: Theme.of(ctx).textTheme.titleLarge),
+                const SizedBox(height: 6),
+                const Text(
+                    '水印内容由拍摄现场自动采集（时间 / 经纬度 / 设备标识），'
+                    '无需手动输入。此处仅选择嵌入算法。',
+                    style: TextStyle(fontSize: 13, color: Colors.grey)),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  value: selected.id,
+                  decoration: const InputDecoration(
+                    labelText: '水印算法',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.account_tree_outlined),
+                  ),
+                  items: [
+                    for (final a in defaultAlgorithms())
+                      DropdownMenuItem(value: a.id, child: Text(a.name)),
+                  ],
+                  onChanged: (id) {
+                    if (id == null) return;
+                    for (final a in defaultAlgorithms()) {
+                      if (a.id == id) {
+                        // 立即生效：父级 setState 更新取景层，setSheet 刷新面板说明
+                        setState(() => _algorithm = a);
+                        setSheet(() => selected = a);
+                        break;
+                      }
+                    }
+                  },
+                ),
+                const SizedBox(height: 12),
+                Text(_algorithmHint(selected.id),
+                    style: const TextStyle(fontSize: 13, color: Colors.grey)),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  static String _algorithmHint(String id) {
+    switch (id) {
+      case 'dct_qim_color':
+        return '视觉无损（PSNR≈55dB，色彩零损失）；JPEG 转发存活至 Q60；容量大。'
+            '日常取证推荐。';
+      case 'dwt':
+        return '速度最快、抗噪最强（noise≤10）；JPEG 压缩下较弱（仅 Q95 存活）。';
+      case 'spread_spectrum':
+        return '鲁棒性最强（noise≤15、JPEG Q70 存活）；容量较小。';
+      default:
+        return '';
+    }
+  }
+
+  // ---- 验水印面板（独立 StatefulWidget：面板状态自管理）----
+  Future<void> _showVerifySheet() {
+    return showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (ctx) => const _VerifySheet(),
+    );
+  }
+
+  @override
+  void dispose() {
+    _camera?.dispose();
+    _lastThumb?.dispose();
+    super.dispose();
+  }
+}
+
+// ================= 验水印面板 =================
+// 独立 StatefulWidget：bottom sheet 是独立路由，父 State 的 setState 不会
+// 触发其重建——选图/提取/结果状态由面板自持，图像句柄随面板关闭释放。
+class _VerifySheet extends StatefulWidget {
+  const _VerifySheet();
+
+  @override
+  State<_VerifySheet> createState() => _VerifySheetState();
+}
+
+class _VerifySheetState extends State<_VerifySheet> {
+  ui.Image? _inspectImage; // 待验图片预览
+  WmBitmap? _inspectWm;
+  String? _extractedText;
+  String _inspectStatus = '选择一张带水印的图片进行验证';
+  bool _busy = false;
+
+  // ---- 从相册选图 ----
   Future<void> _pickInspectImage() async {
     setState(() {
       _busy = true;
@@ -211,92 +619,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  // ---- 取证快门：拍摄 → 采集证据 → 嵌入水印 → 存相册 ----
-  Future<void> _captureAndWatermark() async {
-    final camera = _camera;
-    if (camera == null || !camera.value.isInitialized) {
-      _toast('相机未就绪');
-      return;
-    }
-    setState(() {
-      _busy = true;
-      _editStatus = '正在拍摄…';
-    });
-    try {
-      // 1. 拍摄
-      final xfile = await camera.takePicture();
-      final bytes = await xfile.readAsBytes();
-      final image = await decodeImage(bytes);
-      final wm = await uiImageToWmBitmap(image);
-      image.dispose(); // 修复（C6）：临时解码用完即释放（像素已拷入 WmBitmap）
-
-      // 2. 采集取证证据（时间 + 经纬度 + 设备ID）
-      final deviceId = await _deviceId();
-      final pos = await _currentPosition();
-      final evidence = Evidence(
-        capturedAt: DateTime.now(),
-        latitude: pos?.latitude,
-        longitude: pos?.longitude,
-        deviceId: deviceId,
-        algorithmId: _algorithm.id,
-      );
-      // 容量上限按当前算法 + 拍摄图像尺寸计算
-      final maxLen = _algorithm.maxTextLength(wm);
-      final watermark = evidence.toWatermarkString(maxLen: maxLen);
-
-      // 3. 后台嵌入
-      setState(() => _editStatus = '正在嵌入取证水印…');
-      final result =
-          await compute(_embedInBackground, [wm, watermark, _algorithm.id]);
-      final uiImg = await wmBitmapToUiImage(result);
-
-      // 4. 保存到系统相册
-      final png = await wmBitmapToPng(result);
-      await Gal.putImageBytes(png);
-
-      if (!mounted) return;
-      // 修复（C6）：释放被替换的旧拍摄预览图
-      final oldPreview = _editPreview;
-      setState(() {
-        _editResult = result;
-        _editPreview = uiImg;
-        _busy = false;
-        _editStatus = '取证水印已嵌入并保存到相册';
-      });
-      if (oldPreview != null) {
-        WidgetsBinding.instance
-            .addPostFrameCallback((_) => oldPreview.dispose());
-      }
-      _toast('已保存：$watermark');
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _busy = false;
-        _editStatus = '取证失败：$e';
-      });
-    }
-  }
-
-  // ---- 获取当前经纬度（失败返回 null）----
-  Future<Position?> _currentPosition() async {
-    try {
-      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) return null;
-      var permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-      }
-      if (permission == LocationPermission.denied ||
-          permission == LocationPermission.deniedForever) {
-        return null;
-      }
-      return await Geolocator.getCurrentPosition();
-    } catch (_) {
-      return null;
-    }
-  }
-
-  // ---- 提取 ----
+  // ---- 提取水印（后台遍历全部注册算法）----
   Future<void> _extractWatermark() async {
     final target = _inspectWm;
     if (target == null) {
@@ -323,157 +646,66 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _toast(String msg) {
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
-    }
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  }
+
+  @override
+  void dispose() {
+    // 修复（C6）：面板关闭时释放原生图像句柄
+    _inspectImage?.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return DefaultTabController(
-      length: 2,
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('DCT 数字水印相机'),
-          bottom: const TabBar(
-            tabs: [
-              Tab(icon: Icon(Icons.photo_camera), text: '取证拍照'),
-              Tab(icon: Icon(Icons.search), text: '验水印（提取）'),
-            ],
-          ),
-        ),
-        body: Stack(
+    return SizedBox(
+      height: MediaQuery.of(context).size.height * 0.85,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            TabBarView(
-              children: [
-                _buildEditorTab(),
-                _buildInspectorTab(),
-              ],
+            Text('验水印', style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 4),
+            const Text('从相册选择照片，提取其中的取证水印（自动尝试全部算法）',
+                style: TextStyle(fontSize: 13, color: Colors.grey)),
+            const SizedBox(height: 12),
+            FilledButton.tonalIcon(
+              onPressed: _busy ? null : _pickInspectImage,
+              icon: const Icon(Icons.photo_library),
+              label: const Text('从相册选择要验证的图片'),
+              style: FilledButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 14)),
             ),
-            if (_busy) const _BusyOverlay(),
+            const SizedBox(height: 12),
+            Expanded(
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _ImagePreview(
+                        image: _inspectImage,
+                        hint: '从相册选择一张带水印的图片进行验证'),
+                    const SizedBox(height: 12),
+                    FilledButton.tonalIcon(
+                      onPressed: _busy ? null : _extractWatermark,
+                      icon: const Icon(Icons.manage_search),
+                      label: const Text('提取水印'),
+                      style: FilledButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 14)),
+                    ),
+                    const SizedBox(height: 12),
+                    if (_extractedText != null) _buildExtractResult(),
+                    _StatusLine(
+                        icon: Icons.search,
+                        text: _inspectStatus,
+                        color: Colors.indigo),
+                  ],
+                ),
+              ),
+            ),
           ],
         ),
-      ),
-    );
-  }
-
-  // ---- 取证拍照 Tab ----
-  Widget _buildEditorTab() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // 相机实时取景（或拍摄结果预览）
-          _buildCameraView(),
-          const SizedBox(height: 14),
-
-          // ---- 算法选择 ----
-          DropdownButtonFormField<String>(
-            value: _algorithm.id,
-            decoration: const InputDecoration(
-              labelText: '水印算法',
-              border: OutlineInputBorder(),
-              prefixIcon: Icon(Icons.account_tree_outlined),
-            ),
-            items: [
-              for (final a in defaultAlgorithms())
-                DropdownMenuItem(value: a.id, child: Text(a.name)),
-            ],
-            onChanged: _busy
-                ? null
-                : (id) {
-                    if (id != null) {
-                      for (final a in defaultAlgorithms()) {
-                        if (a.id == id) {
-                          setState(() => _algorithm = a);
-                          break;
-                        }
-                      }
-                    }
-                  },
-          ),
-          const SizedBox(height: 12),
-
-          // ---- 快门 ----
-          FilledButton.icon(
-            onPressed: (_busy || !_cameraReady) ? null : _captureAndWatermark,
-            icon: const Icon(Icons.photo_camera),
-            label: const Text('快门取证（拍摄+自动加水印）'),
-            style: FilledButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 18)),
-          ),
-          const SizedBox(height: 12),
-
-          // ---- 拍摄结果提示 ----
-          if (_editResult != null)
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFFF7ED),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFFFDBA74)),
-              ),
-              child: const Text('已自动嵌入取证水印并保存到系统相册',
-                  style: TextStyle(fontWeight: FontWeight.w600)),
-            ),
-          const SizedBox(height: 14),
-          _StatusLine(
-              icon: Icons.info_outline, text: _editStatus, color: Colors.teal),
-        ],
-      ),
-    );
-  }
-
-  // ---- 相机视图：就绪时实时取景，否则显示拍摄结果/提示 ----
-  Widget _buildCameraView() {
-    final camera = _camera;
-    if (camera != null && camera.value.isInitialized && _cameraReady) {
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(12),
-        child: AspectRatio(
-          aspectRatio: camera.value.aspectRatio,
-          child: CameraPreview(camera),
-        ),
-      );
-    }
-    // 相机不可用或已拍摄：显示结果预览
-    return _ImagePreview(
-      image: _editPreview,
-      hint: _cameraReady ? '点击快门拍摄取证' : '相机不可用',
-    );
-  }
-
-  // ---- 提取 Tab ----
-  Widget _buildInspectorTab() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // 提取只从相册选图：拍照所得照片必然无水印，故无拍照按钮
-          FilledButton.tonalIcon(
-            onPressed: _busy ? null : _pickInspectImage,
-            icon: const Icon(Icons.photo_library),
-            label: const Text('从相册选择要验证的图片'),
-            style: FilledButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 16)),
-          ),
-          const SizedBox(height: 14),
-          _ImagePreview(image: _inspectImage, hint: '从相册选择一张带水印的图片进行验证'),
-          const SizedBox(height: 14),
-          FilledButton.tonalIcon(
-            onPressed: _busy ? null : _extractWatermark,
-            icon: const Icon(Icons.manage_search),
-            label: const Text('提取水印'),
-            style: FilledButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 16)),
-          ),
-          const SizedBox(height: 14),
-          if (_extractedText != null) _buildExtractResult(),
-          _StatusLine(
-              icon: Icons.search, text: _inspectStatus, color: Colors.indigo),
-        ],
       ),
     );
   }
@@ -482,6 +714,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final text = _extractedText!;
     if (text.isEmpty) {
       return Container(
+        margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           color: const Color(0xFFFEF2F2),
@@ -507,6 +740,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final ev = parseEvidence(text);
 
     return Container(
+      margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: const Color(0xFFF0FDF4),
@@ -516,7 +750,6 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 算法标识
           Row(
             children: [
               const Icon(Icons.account_tree_outlined,
@@ -528,9 +761,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
           const SizedBox(height: 10),
-
           if (ev != null) ...[
-            // 结构化字段
             _fieldRow(Icons.schedule, '拍摄时间', _formatTime(ev.capturedAt)),
             if (ev.hasLocation)
               _fieldRow(Icons.place, '经纬度',
@@ -543,10 +774,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 style: TextStyle(fontSize: 12, color: Colors.grey)),
             const SizedBox(height: 4),
             Text(text,
-                style: const TextStyle(
-                    fontSize: 13, fontFamily: 'monospace')),
+                style:
+                    const TextStyle(fontSize: 13, fontFamily: 'monospace')),
           ] else ...[
-            // 非取证格式，仅显示原始文本
             const Text('提取到的水印内容（非取证格式）：',
                 style: TextStyle(fontSize: 13, color: Colors.grey)),
             const SizedBox(height: 4),
@@ -559,7 +789,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // 结构化字段行
   Widget _fieldRow(IconData icon, String label, String value) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
@@ -589,15 +818,6 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   String _fmtCoord(double v) => v.toStringAsFixed(6);
-
-  @override
-  void dispose() {
-    _camera?.dispose();
-    // 修复（C6）：释放状态持有的原生图像句柄
-    _editPreview?.dispose();
-    _inspectImage?.dispose();
-    super.dispose();
-  }
 }
 
 // ---- 图片预览 ----
@@ -660,29 +880,6 @@ class _StatusLine extends StatelessWidget {
               style: TextStyle(color: color, fontSize: 13, height: 1.4)),
         ),
       ],
-    );
-  }
-}
-
-// ---- 忙碌遮罩 ----
-class _BusyOverlay extends StatelessWidget {
-  const _BusyOverlay();
-
-  @override
-  Widget build(BuildContext context) {
-    return Positioned.fill(
-      child: Container(
-        color: Colors.black38,
-        alignment: Alignment.center,
-        child: const Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            CircularProgressIndicator(),
-            SizedBox(height: 12),
-            Text('处理中…', style: TextStyle(color: Colors.white)),
-          ],
-        ),
-      ),
     );
   }
 }

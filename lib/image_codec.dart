@@ -54,6 +54,48 @@ Future<Uint8List> wmBitmapToPng(WmBitmap wm) async {
   return byteData.buffer.asUint8List();
 }
 
+/// 把原始 RGBA 像素编码为 PNG 字节（引擎原生编码，不阻塞 UI）。
+///
+/// 修复（2026-10-08 实测卡死）：拍摄管线原先在主 isolate 跑两段 2M 像素的
+/// 纯 Dart 转换循环（RGBA→ARGB / ARGB→RGBA），debug 模式模拟器上冻结 UI 数秒。
+/// 现转换循环移入 compute isolate，主 isolate 只做原生异步调用（解码/编码/GPU 读回）。
+Future<Uint8List> rawRgbaToPng(Uint8List rgba, int width, int height) async {
+  final completer = Completer<ui.Image>();
+  ui.decodeImageFromPixels(
+      rgba, width, height, ui.PixelFormat.rgba8888, completer.complete);
+  final img = await completer.future;
+  final byteData = await img.toByteData(format: ui.ImageByteFormat.png);
+  img.dispose();
+  if (byteData == null) {
+    throw StateError('Failed to encode PNG');
+  }
+  return byteData.buffer.asUint8List();
+}
+
+/// 从原始 RGBA 像素生成小尺寸缩略图（最近邻下采样，用于相机底部相册入口）。
+Future<ui.Image> makeThumbnail(Uint8List rgba, int width, int height,
+    {int targetWidth = 64}) {
+  final tw = targetWidth;
+  final th = (height * tw / width).round().clamp(1, 100000);
+  final thumb = Uint8List(tw * th * 4);
+  for (int y = 0; y < th; y++) {
+    final sy = (y * height ~/ th).clamp(0, height - 1);
+    for (int x = 0; x < tw; x++) {
+      final sx = (x * width ~/ tw).clamp(0, width - 1);
+      final si = (sy * width + sx) * 4;
+      final di = (y * tw + x) * 4;
+      thumb[di] = rgba[si];
+      thumb[di + 1] = rgba[si + 1];
+      thumb[di + 2] = rgba[si + 2];
+      thumb[di + 3] = 0xFF;
+    }
+  }
+  final completer = Completer<ui.Image>();
+  ui.decodeImageFromPixels(
+      thumb, tw, th, ui.PixelFormat.rgba8888, completer.complete);
+  return completer.future;
+}
+
 /// 从文件字节解码出 ui.Image。
 Future<ui.Image> decodeImage(Uint8List bytes) async {
   final codec = await ui.instantiateImageCodec(bytes);
